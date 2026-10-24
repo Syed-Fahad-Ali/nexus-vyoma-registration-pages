@@ -1,8 +1,6 @@
 import { connectToDatabase } from "@/database/db";
 import Event from "@/database/schema/event.schema";
 import { NextRequest, NextResponse } from "next/server";
-import enrolledIndividualEventModel from "@/database/schema/enrolled-individual-event.schema";
-import enrolledTeamEventModel from "@/database/schema/enrolled-team-event.schema";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
@@ -21,32 +19,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             }, { status: 404 })
         }
 
-        let enrolledEventsCount = 0;
-        if (event && event.participants_type === "team") {
-            enrolledEventsCount = await enrolledTeamEventModel.countDocuments({
-                $and: [
-                    { event_id: event._id }
-                ]
-            })
-        } else {
-            enrolledEventsCount = await enrolledIndividualEventModel.countDocuments({
-                $and: [
-                    { event_id: event._id }
-                ]
-            })
-        }
-
-        let isSoldOut = false;
-
-        if (enrolledEventsCount >= event.participant_limit) {
-            isSoldOut = true;
-        }
-
         return NextResponse.json({
             message: "Event fetched successfully",
             data: {
                 ...event.toObject(),
-                isSoldOut
+                isSoldOut: false,
             },
             error: null,
             redirect: false,
