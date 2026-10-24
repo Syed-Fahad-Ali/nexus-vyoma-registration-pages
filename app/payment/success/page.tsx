@@ -16,35 +16,29 @@ interface SuccessPageProps {
 async function SuccessContent({ searchParams }: SuccessPageProps) {
   const params = searchParams ? await searchParams : {};
 
+  const getParam = (key: string): string | undefined => {
+    const val = params[key];
+    if (typeof val === 'string') return val;
+    if (Array.isArray(val) && typeof val[0] === 'string') return val[0];
+    return undefined;
+  };
+
   const transactionId =
-    typeof params.transaction_id === 'string'
-      ? params.transaction_id
-      : typeof params.txnid === 'string'
-      ? params.txnid
-      : typeof params.payment_id === 'string'
-      ? params.payment_id
-      : undefined;
+    getParam('transaction_id') ||
+    getParam('txnid') ||
+    getParam('payment_id');
 
   const orderId =
-    typeof params.order_id === 'string'
-      ? params.order_id
-      : typeof params.orderid === 'string'
-      ? params.orderid
-      : undefined;
+    getParam('order_id') ||
+    getParam('orderid');
 
   const teamName =
-    typeof params.team_name === 'string'
-      ? params.team_name
-      : typeof params.team === 'string'
-      ? params.team
-      : undefined;
+    getParam('team_name') ||
+    getParam('team');
 
   const teamMembers =
-    typeof params.team_members === 'string'
-      ? params.team_members
-      : typeof params.members === 'string'
-      ? params.members
-      : undefined;
+    getParam('team_members') ||
+    getParam('members');
 
   return (
     <StatusCard

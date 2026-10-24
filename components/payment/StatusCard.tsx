@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -29,7 +30,37 @@ export default function StatusCard({
   teamName,
   teamMembers,
 }: StatusCardProps) {
+  const router = useRouter();
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState<number>(3);
+  const hasRedirected = useRef<boolean>(false);
+  const isEntryTicketSuccess =
+    status === 'success' &&
+    (!orderId || orderId.startsWith('NVET_')) &&
+    !orderId?.startsWith('NV_');
+
+  const handleRedirect = useCallback(() => {
+    if (hasRedirected.current) return;
+    hasRedirected.current = true;
+    router.push('/register/enroll-event');
+  }, [router]);
+
+  useEffect(() => {
+    if (!isEntryTicketSuccess) return;
+
+    const interval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          handleRedirect();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isEntryTicketSuccess, handleRedirect]);
 
   const handleCopy = (text: string, field: string) => {
     if (navigator?.clipboard) {
@@ -134,6 +165,13 @@ export default function StatusCard({
             Payment Successful
           </h1>
 
+          {/* Supporting message for confirmed Entry Pass */}
+          {isEntryTicketSuccess && (
+            <p className="text-sm sm:text-base text-zinc-300 max-w-lg mb-6 leading-relaxed">
+              Your Nexus Vyoma Entry Pass is confirmed! Explore our exclusive paid events and choose the experiences you want to attend.
+            </p>
+          )}
+
           {/* Order Details: Transaction ID, Order ID, Team Details (Pure Typography, No capsules) */}
           {(transactionId || orderId || teamName || teamMembers) && (
             <div className="flex flex-col items-center gap-2.5 sm:gap-3 mb-6 font-mono text-sm sm:text-base">
@@ -201,13 +239,19 @@ export default function StatusCard({
             The QR code will be sent to your email soon
           </p>
 
-          {orderId?.startsWith('NVET_') ? (
+          {isEntryTicketSuccess ? (
             <div className="flex flex-col items-center gap-4">
+              <p className="font-mono text-xs sm:text-sm text-zinc-400 tracking-wide">
+                {countdown > 0
+                  ? `Redirecting to event enrolment in ${countdown} ${countdown === 1 ? 'second' : 'seconds'}...`
+                  : 'Redirecting to event enrolment...'}
+              </p>
               <Link
                 href="/register/enroll-event"
-                className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full font-semibold text-sm text-black bg-[#FF6A00] hover:bg-[#ff7b1a] shadow-[0_0_30px_rgba(255,106,0,0.4)] transition-all duration-200 active:scale-[0.98]"
+                onClick={handleRedirect}
+                className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full font-semibold text-sm text-black bg-[#FF6A00] hover:bg-[#ff7b1a] shadow-[0_0_30px_rgba(255,106,0,0.4)] transition-all duration-200 active:scale-[0.98] cursor-pointer"
               >
-                <span>Proceed to Enroll Events</span>
+                <span>EXPLORE PAID EVENTS</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link

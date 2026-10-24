@@ -43,7 +43,47 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Newest first.
 
-### 2026-10-23 — Add Spam Folder Notice on `/register/verify-email` Page
+### 2026-10-24 — Update Navbar "CLAIM YOUR PASS" SpecularButton Styling & Props
+
+**Done**
+- **`components/ui/SpecularButton.tsx`**:
+  - Added `idleIntensity?: number` and `glow?: number` props to `SpecularButtonProps` interface and implementation.
+  - Wired `idleIntensity` into the WebGL animation loop (`Math.max(p.idleIntensity, proximityT)`) to maintain ambient specular rim reflection even when idle.
+  - Wired `glow` into the shader uniform intensity calculation (`p.intensity * p.glow * bright`).
+  - Replaced `any` typing on WebGL context with `WebGL2RenderingContext | WebGLRenderingContext | null` for clean type safety.
+- **`components/navbar/Navbar.tsx` & `components/hero/HeroNavbarTransition.tsx`**:
+  - Updated the navbar CTA `<SpecularButton>` with the new configuration: `size="lg"`, `radius={40}`, `tint="#ef4444"`, `tintOpacity={0.04}`, `textColor="#f5f5f5"`, `lineColor="#f97316"`, `baseColor="#ec4899"`, `intensity={1}`, `idleIntensity={0.35}`, `shineSize={14}`, `shineFade={40}`, `thickness={1.5}`, `glow={1.4}`, `followMouse`, and `proximity={250}`.
+  - Retained the responsive font/padding wrapper and `<Link href="/check-email">` navigation.
+- **Verification**:
+  - `npx tsc --noEmit` passed with 0 errors.
+  - `npx eslint components/ui/SpecularButton.tsx` passed with 0 errors.
+
+**Files changed**
+- `components/ui/SpecularButton.tsx`
+- `components/navbar/Navbar.tsx`
+- `components/hero/HeroNavbarTransition.tsx`
+- `README.md`
+
+
+**Done**
+- **`components/payment/StatusCard.tsx`**:
+  - Added supporting message for confirmed Entry Pass payments (`orderId?.startsWith('NVET_')`): *"Your Nexus Vyoma Entry Pass is confirmed! Explore our exclusive paid events and choose the experiences you want to attend."*
+  - Added a visible 3-second countdown indicator ("Redirecting to event enrolment in 3 seconds..." &rarr; 2 seconds &rarr; 1 second) directly above the primary action button.
+  - Automatically redirects attendees with confirmed Entry Pass payments to `/register/enroll-event` when the countdown expires via `router.push('/register/enroll-event')`.
+  - Added **`EXPLORE PAID EVENTS`** button that navigates immediately to `/register/enroll-event` without waiting for the countdown.
+  - Implemented safe redirect guard with `hasRedirected.current = useRef(false)` to prevent duplicate navigations.
+  - Cleaned up interval timer on unmount with `clearInterval`.
+  - Ensured pending, failed, cancelled, unverified, and paid-event flows remain strictly unchanged.
+- **`app/payment/success/page.tsx`**:
+  - Upgraded `SuccessContent` parameter parsing to safely extract parameters whether passed as a single string or string array (e.g., when query parameters like `order_id` repeat in the return URL).
+- **Verification**:
+  - `npx tsc --noEmit` passed with 0 errors.
+
+**Files changed**
+- `app/payment/success/page.tsx`
+- `components/payment/StatusCard.tsx`
+- `README.md`
+
 
 **Done**
 - **Spam / Junk Reminder (`components/registration/OtpStepForm.tsx`)**:
