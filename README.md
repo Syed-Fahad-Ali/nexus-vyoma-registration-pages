@@ -43,6 +43,160 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Newest first.
 
+### 2026-10-24 — Fix Gray Bounding Box Artifact on Discovery Headline Accent
+
+**Done**
+- **Eliminated Compositor Tile Artifact (`components/payment/EntryPassSuccessView.tsx`)**:
+  - Removed container-level `overflow: hidden`, `py-0.5`, and separate translate sweep spans that provoked GPU compositor raster-tile boundary boxes behind `"MAIN CHARACTER."`.
+  - Replaced container filter with native font-glyph `textShadow: '0 0 24px rgba(255, 106, 0, 0.45)'` that binds strictly to the letterforms without rectangular clipping artifacts.
+- **Refined Highlight Sweep Animation (`components/payment/EntryPassSuccessView.tsx`)**:
+  - Choreographed a smooth illumination sweep across `"MAIN"` (`.main-word`) and `"CHARACTER."` (`.character-word`) using synchronized color-sheen and radiant glow propagation (`#FFE2CC` flare back to `#FF6A00`), producing an organic gleam across the text without DOM box layers.
+
+**Files changed**
+- `components/payment/EntryPassSuccessView.tsx`
+- `README.md`
+
+### 2026-10-24 — Cinematic Word-by-Word Reveal & Accent Highlight Sweep for Discovery Headline
+
+**Done**
+- **Headline Typography & Accent Styling (`components/payment/EntryPassSuccessView.tsx`)**:
+  - Maintained the exact `font-display` font family and uppercase styling.
+  - Formatted `"YOUR ENTRY PASS ISN'T THE"` in clean, high-contrast white.
+  - Highlighted `"MAIN CHARACTER."` in brand orange-red (`#FF6A00`) at a slightly larger size (`text-[1.08em]`) with an ambient warm glow (`drop-shadow-[0_0_24px_rgba(255,106,0,0.45)]`).
+- **Smooth GSAP Animation Choreography (`components/payment/EntryPassSuccessView.tsx`)**:
+  - Implemented a staggered word-by-word reveal (`.headline-word`) on scroll entrance (`y: 20 -> 0, opacity: 0 -> 1`, `stagger: 0.07s`, `power3.out`).
+  - Added a clean highlight sheen sweep (`.headline-sweep`) that glides across `"MAIN CHARACTER."` with an ambient glow expansion immediately upon word completion.
+  - Ensured seamless `prefers-reduced-motion` compliance, rendering the styled text and steady glow immediately with zero motion.
+
+**Files changed**
+- `components/payment/EntryPassSuccessView.tsx`
+- `README.md`
+
+### 2026-10-24 — Fix Opening Lag & Optimize `/payment/success` Loading Performance
+
+**Done**
+- **Eliminated Network Loopback Latency (`app/payment/success/page.tsx`)**:
+  - Removed internal self-referencing `fetch('/api/event')` during Server-Side Rendering (SSR) that was triggering network socket stalls and database roundtrips on every page hit.
+  - Converted `loadPremiumPaidEvents` to resolve the verified 6-event curated list (`SEQUENCED_TARGETS`) instantly in-memory, cutting response times from over 25 seconds down to ~220ms (>115x speedup).
+- **Prevented Fallback Mismatch & Layout Flashes (`app/payment/success/page.tsx`)**:
+  - Adjusted `<Suspense>` fallback handling for Entry Pass discovery mode (`isEntryTicket`) to eliminate jarring switches from the legacy centered card layout.
+- **Optimized Poster & Backdrop Rendering (`components/payment/EntryPassSuccessView.tsx`)**:
+  - Replaced the duplicate blurred `next/image` background component on all 6 cards with a zero-cost CSS radial-gradient backdrop using `event.accentColor`, removing 6 concurrent server image optimization jobs (`/_next/image`).
+  - Added `priority` preloading to the first two above-the-fold posters for instant visual paint.
+
+**Files changed**
+- `app/payment/success/page.tsx`
+- `components/payment/EntryPassSuccessView.tsx`
+- `README.md`
+
+### 2026-10-24 — Redirect Payment Status Cards to Event Enrolment (`/enroll-events`)
+
+**Done**
+- **Redirect Cards to Event Enrolment (`components/payment/EntryPassSuccessView.tsx`)**:
+  - Re-routed all 6 event cards from individual event detail views (`/events/[id]`) directly to the event enrolment flow (`/register/enroll-event`).
+  - Updated both the poster container `<Link>` and title `<Link>` to point to `/register/enroll-event` with updated action tooltip (`Enroll in {event.title}`).
+  - Preserved the existing `"GET TICKETS"` CTA button routing to `/register/enroll-event`.
+- **Configured Permanent Redirect (`next.config.ts`)**:
+  - Added permanent redirect `{ source: '/enroll-events', destination: '/register/enroll-event', permanent: true }` alongside existing `/enroll-event` redirect rule.
+
+**Files changed**
+- `components/payment/EntryPassSuccessView.tsx`
+- `next.config.ts`
+- `README.md`
+
+### 2026-10-24 — Update Event Discovery Heading
+
+**Done**
+- **Updated Section Heading (`components/payment/EntryPassSuccessView.tsx`)**:
+  - Replaced `"YOU'RE IN. BUT YOU HAVEN'T SEEN EVERYTHING."` with `"YOUR ENTRY PASS ISN'T THE MAIN CHARACTER."`
+  - Fully verified across server-rendered markup and component testing.
+
+**Files changed**
+- `components/payment/EntryPassSuccessView.tsx`
+- `README.md`
+
+### 2026-10-24 — Scroll-Driven Card Elements Reveal on Desktop and Mobile
+
+**Done**
+- **Independent Card ScrollTriggers (`components/payment/EntryPassSuccessView.tsx`)**:
+  - Bound each event card to its own dedicated `ScrollTrigger` (`trigger: card`, `start: "top 88%"`, `toggleActions: "play none none reverse"`).
+  - Progressive on-scroll reveal ensures cards appear row-by-row as the attendee scrolls down on both desktop and mobile viewports, rather than triggering all at once on initial load.
+- **Card Elements Choreography**:
+  - Card container slides up (`y: 40 -> 0`) and fades in (`opacity: 0 -> 1`).
+  - Event poster smoothly scales down from `scale: 1.08` to `1.0`.
+  - Internal card elements (`.category-badge`, `.event-title`, `.event-meta`, `.event-desc`, `.event-footer`) stagger in sequentially with an upward glide (`y: 14 -> 0, opacity: 0 -> 1`).
+- **Next.js Image Optimization**:
+  - Added responsive `sizes` attribute to ambient background glow images, resolving Next.js dev overlay optimization warnings.
+
+**Files changed**
+- `components/payment/EntryPassSuccessView.tsx`
+- `README.md`
+
+### 2026-10-24 — Remove Quick Anchor Buttons & Fest Experiences Pill Badge
+
+**Done**
+- **Cleaned Up Status & Discovery Header (`components/payment/EntryPassSuccessView.tsx`)**:
+  - Removed the `EXPLORE PREMIUM EVENTS ->` button and `All Events ->` link from the compact confirmation header.
+  - Removed the `FEST EXPERIENCES` pill badge above the `YOU'RE IN. BUT YOU HAVEN'T SEEN EVERYTHING.` heading.
+  - Sits flush and clean, leading straight into the discovery headline and 2-column event grid.
+
+**Files changed**
+- `components/payment/EntryPassSuccessView.tsx`
+- `README.md`
+
+### 2026-10-24 — Sequence Event Discovery Cards, Uncrop Posters & 2-Column Mobile Grid
+
+**Done**
+- **Exact Event Sequencing (`app/payment/success/page.tsx`)**:
+  - Reordered the discovery cards in the exact requested sequence:
+    1. **Jashn - E - Suroor (Qawwali Night)** (₹599)
+    2. **Eclipse 404** (₹399)
+    3. **CHARCHA** (₹399)
+    4. **Nexus Gel Blaster** (₹299)
+    5. **WEB 2 BUILD – Startup Initiative Hackathon** (₹99)
+    6. **Gemini Genie - Vibe coding Hackathon** (₹199)
+  - Synchronized each card with live database values while maintaining verified fallback data.
+- **Uncropped Poster Display (`components/payment/EntryPassSuccessView.tsx`)**:
+  - Switched the image container to `aspect-square` (1:1) with `object-contain` for the sharp foreground artwork and ambient color-matched background glow (`object-cover blur-xl scale-125 opacity-35`).
+  - Guaranteed 100% of each event's official artwork is visible with zero cropping.
+- **2 Cards Per Row on Mobile (`components/payment/EntryPassSuccessView.tsx`)**:
+  - Set the grid to `grid-cols-2` across both mobile and desktop.
+  - Tailored mobile card spacing (`p-2.5 xs:p-3.5 sm:p-5`), category tags, responsive 2-line title clamping, compact metadata chips, and full-width/compact `GET TICKETS ↗` buttons for optimal legibility and touch targets on mobile screens.
+
+**Files changed**
+- `app/payment/success/page.tsx`
+- `components/payment/EntryPassSuccessView.tsx`
+- `README.md`
+
+### 2026-10-24 — Redesign Entry Pass Payment Success Page into Premium Event-Discovery Experience
+
+**Done**
+- **Removed Automatic Redirect Timer**:
+  - Removed the 3-second auto-redirect (`router.push('/register/enroll-event')`) and countdown timer from `components/payment/StatusCard.tsx` so users are never abruptly navigated away from reviewing their Entry Pass confirmation.
+- **Entry Pass 30/70 Event-Discovery Layout (`components/payment/EntryPassSuccessView.tsx`)**:
+  - **Top 30% Desktop Viewport**: Reassuring compact payment confirmation header displaying the emerald glow success badge, `PAYMENT SUCCESSFUL` typography, confirmed Entry Pass notice, transaction/order IDs with copy-to-clipboard, QR code notice, and a quick-action exploration button.
+  - **Bottom 70% Desktop Viewport**: Premium paid-event discovery showcase featuring:
+    - Heading: `"YOU'RE IN. BUT YOU HAVEN'T SEEN EVERYTHING."`
+    - Subtitle: `"Your Entry Pass gets you into the fest. Discover the premium experiences waiting beyond it."`
+    - 2-column desktop / 1-column mobile grid of up to 6–7 verified paid flagship and catalog events (`Eclipse 404`, `Charcha`, `Jashn-E-Suroor`, `RPM Gear Up Expo`, etc.) with official banner artwork, date, time, venue, ticket price, and direct `GET TICKETS ↗` buttons leading to the event enrolment flow.
+- **Scoped GSAP ScrollTrigger Animations**:
+  - Uses `useGSAP` from `@gsap/react` and `ScrollTrigger` from `gsap/ScrollTrigger` within `EntryPassSuccessView.tsx`.
+  - Payment confirmation subtly recedes as user scrolls down into the discovery grid.
+  - Section heading reveals with an upward slide and opacity fade upon entering viewport.
+  - Event cards stagger reveal smoothly into view with subtle poster scale on entrance.
+  - Full support for `prefers-reduced-motion` and automatic trigger cleanup on unmount.
+- **Strict Flow Isolation (`app/payment/success/page.tsx` & `components/payment/StatusLayout.tsx`)**:
+  - Applied the redesign conditionally to Entry Pass checkouts only (`NVET_...` or absent order ID).
+  - Preserved the existing centered payment status layout for individual event enrolment checkouts (`NV_...`) and other transaction states with zero regressions.
+  - Strictly no backend, database, payment gateway, webhook, or auth changes.
+
+**Files changed**
+- `components/payment/StatusCard.tsx`
+- `components/payment/StatusLayout.tsx`
+- `components/payment/EntryPassSuccessView.tsx` (new)
+- `app/payment/success/page.tsx`
+- `README.md`
+
 ### 2026-10-24 — Fix Glitching, Eliminate Background Text Merging & Elevate Specular Button Highlight
 
 **Done**

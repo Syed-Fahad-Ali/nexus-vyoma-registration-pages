@@ -62,6 +62,11 @@ const nextConfig: NextConfig = {
         destination: '/register/enroll-event',
         permanent: true,
       },
+      {
+        source: '/enroll-events',
+        destination: '/register/enroll-event',
+        permanent: true,
+      },
     ];
   },
 };
