@@ -43,23 +43,48 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Newest first.
 
-### 2026-10-24 — Update Navbar "CLAIM YOUR PASS" SpecularButton Styling & Props
+### 2026-10-24 — Fix Glitching, Eliminate Background Text Merging & Elevate Specular Button Highlight
 
 **Done**
-- **`components/ui/SpecularButton.tsx`**:
-  - Added `idleIntensity?: number` and `glow?: number` props to `SpecularButtonProps` interface and implementation.
-  - Wired `idleIntensity` into the WebGL animation loop (`Math.max(p.idleIntensity, proximityT)`) to maintain ambient specular rim reflection even when idle.
-  - Wired `glow` into the shader uniform intensity calculation (`p.intensity * p.glow * bright`).
-  - Replaced `any` typing on WebGL context with `WebGL2RenderingContext | WebGLRenderingContext | null` for clean type safety.
+- **Eliminated Background Text Bleed-Through & Merging**:
+  - Identified root cause from user screenshot where large Hero typography ("DAYS OF CELEBRATION", "COLLEGES ACROSS HYD") was bleeding straight through the button due to transparency (`tintOpacity={0.12}`).
+  - Added `bg="#0c0f19"` backdrop prop to `SpecularButton` and `--sb-bg` fallback in `SpecularButton.css`, creating a solid, opaque midnight obsidian surface with `backdrop-filter: blur(16px)` and `isolation: isolate`.
+  - Guaranteed 100% contrast, legibility, and visual separation so scrolling text never collides with `"CLAIM YOUR PASS"`.
+- **Eliminated WebGL Canvas Glitching & Black Fringe Smudges**:
+  - Stabilized `ResizeObserver` in `components/ui/SpecularButton.tsx` by using integer `offsetWidth`/`offsetHeight` and adding a threshold check (`Math.abs(diff) > 1px`), stopping rapid canvas buffer reallocation and flickering during GSAP scroll animations.
+  - Removed muddy dark halo `base` stroke from GLSL fragment shader, preventing dirty black smudges on dark surfaces.
+  - Reduced canvas bleed padding from 20px to 10px (`inset: -10px`) to prevent canvas boundary clipping against navbar capsules.
+- **Refined Minimal Luxury Highlighted Aesthetic (Mobile & Desktop)**:
+  - Applied jewelry-like hairline amber border (`border border-amber-400/40 hover:border-amber-400/80`) and warm golden ambient elevation (`shadow-[0_4px_20px_rgba(0,0,0,0.65),0_0_14px_rgba(245,158,11,0.2)]`).
+  - Active specular light gleam (`lineColor="#ffffff"`, `baseColor="#f59e0b"`, `idleIntensity={0.4}`, `glow={1.2}`) ensures the button feels alive and highlighted on both mobile and desktop without flashy neon colors.
+  - Synchronized across both `components/navbar/Navbar.tsx` and `components/hero/HeroNavbarTransition.tsx`.
+- **Verification**:
+  - `npx tsc --noEmit` passed with code 0.
+  - `npx eslint` passed with 0 errors.
+
+### 2026-10-24 — Refine Navbar "CLAIM YOUR PASS" to Minimal Luxury Highlighted SpecularButton
+
+**Done**
+- **`components/ui/SpecularButton.tsx` & `components/ui/SpecularButton.css`**:
+  - Premultiplied alpha in the fragment shader (`fragColor = vec4(col * a, a)`), permanently eliminating WebGL black fringing and dark canvas border artifacts.
+  - Added `OGLRenderingContext` typing from `ogl` for strict type safety.
+  - Supported `idleIntensity` and `glow` props to produce an ambient specular shimmer even when idle.
+  - Refined inner hairline reflection (`inset 0 1px 0 rgba(255, 255, 255, 0.15)`) for an authentic Apple-style polished mirror-glass effect.
 - **`components/navbar/Navbar.tsx` & `components/hero/HeroNavbarTransition.tsx`**:
-  - Updated the navbar CTA `<SpecularButton>` with the new configuration: `size="lg"`, `radius={40}`, `tint="#ef4444"`, `tintOpacity={0.04}`, `textColor="#f5f5f5"`, `lineColor="#f97316"`, `baseColor="#ec4899"`, `intensity={1}`, `idleIntensity={0.35}`, `shineSize={14}`, `shineFade={40}`, `thickness={1.5}`, `glow={1.4}`, `followMouse`, and `proximity={250}`.
-  - Retained the responsive font/padding wrapper and `<Link href="/check-email">` navigation.
+  - Restored `<SpecularButton>` with a refined, minimal luxury highlight configuration:
+    - Frosted glass body with 14px backdrop blur (`tint="#ffffff"`, `tintOpacity={0.12}`, `blur={14}`).
+    - Pure diamond specular light beam streak (`lineColor="#ffffff"`).
+    - Warm golden-amber accent base edge (`baseColor="#f59e0b"`).
+    - Subtle, soft ambient depth (`shadow-[0_4px_16px_rgba(0,0,0,0.35),0_0_12px_rgba(245,158,11,0.18)]`) and hairline glass border (`border-white/20 hover:border-amber-400/50`).
+    - Crisp high-contrast white typography (`text-white`) with diagonal arrow indicator (`↗`).
+  - Completely non-flashy, eliminating all bulky solid backgrounds, while standing out cleanly against page content on mobile and desktop.
 - **Verification**:
   - `npx tsc --noEmit` passed with 0 errors.
-  - `npx eslint components/ui/SpecularButton.tsx` passed with 0 errors.
+  - `npx eslint components/ui/SpecularButton.tsx components/navbar/Navbar.tsx components/hero/HeroNavbarTransition.tsx` passed with 0 errors.
 
 **Files changed**
 - `components/ui/SpecularButton.tsx`
+- `components/ui/SpecularButton.css`
 - `components/navbar/Navbar.tsx`
 - `components/hero/HeroNavbarTransition.tsx`
 - `README.md`

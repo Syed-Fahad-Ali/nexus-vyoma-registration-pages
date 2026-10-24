@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useRef, useEffect, ReactNode, MouseEventHandler } from 'react';
-import { Renderer, Program, Mesh, Triangle, Color } from 'ogl';
+import { Renderer, Program, Mesh, Triangle, Color, type OGLRenderingContext } from 'ogl';
 import './SpecularButton.css';
 
-const PAD = 20;
+const PAD = 10;
 
 const VERT = `#version 300 es
 in vec2 position;
@@ -49,9 +49,6 @@ void main() {
   float d = shapeSDF(p);
   vec2 L = vec2(cos(uAngle), sin(uAngle));
 
-  // Dark base stroke hugging the edge for a sense of thickness
-  float base = (1.0 - smoothstep(0.0, uBaseWidth, abs(d))) * 0.45;
-
   // Symmetric specular: the edges facing toward/away from the light both
   // catch a streak. The angular window (size + fade) is measured with an
   // elliptical normal so it varies continuously along straight edges.
@@ -62,15 +59,18 @@ void main() {
   float edgeClamp = 1.0 - smoothstep(0.5 * uPx, 3.0 * uPx, abs(d));
   float hi = line * rim * edgeClamp * uIntensity;
 
-  vec3 col = uBaseColor * base + uLineColor * hi;
-  float a = clamp(base + hi, 0.0, 1.0);
-  fragColor = vec4(col, a);
+  // Luminous specular shine: smoothly transitions from uBaseColor to uLineColor
+  // No dark stroke, avoiding muddy black fringes or glitchy halos
+  vec3 col = mix(uBaseColor, uLineColor, clamp(hi * 0.8, 0.0, 1.0));
+  float a = clamp(hi, 0.0, 1.0);
+  fragColor = vec4(col * a, a);
 }
 `;
 
 export interface SpecularButtonProps {
   children?: ReactNode;
   size?: 'sm' | 'md' | 'lg';
+  bg?: string;
   radius?: number;
   tint?: string;
   tintOpacity?: number;
@@ -79,6 +79,8 @@ export interface SpecularButtonProps {
   lineColor?: string;
   baseColor?: string;
   intensity?: number;
+  idleIntensity?: number;
+  glow?: number;
   shineSize?: number;
   shineFade?: number;
   thickness?: number;
@@ -96,6 +98,7 @@ export interface SpecularButtonProps {
 export default function SpecularButton({
   children = 'Get Started',
   size = 'lg',
+  bg,
   radius = 18,
   tint = '#ffffff',
   tintOpacity = 0,
@@ -104,6 +107,8 @@ export default function SpecularButton({
   lineColor = '#ffffff',
   baseColor = '#525252',
   intensity = 1,
+  idleIntensity = 0,
+  glow = 1,
   shineSize = 10,
   shineFade = 40,
   thickness = 1,
@@ -124,6 +129,8 @@ export default function SpecularButton({
     lineColor,
     baseColor,
     intensity,
+    idleIntensity,
+    glow,
     shineSize,
     shineFade,
     thickness,
@@ -139,6 +146,8 @@ export default function SpecularButton({
       lineColor,
       baseColor,
       intensity,
+      idleIntensity,
+      glow,
       shineSize,
       shineFade,
       thickness,
@@ -147,7 +156,7 @@ export default function SpecularButton({
       proximity,
       autoAnimate
     };
-  }, [radius, lineColor, baseColor, intensity, shineSize, shineFade, thickness, speed, followMouse, proximity, autoAnimate]);
+  }, [radius, lineColor, baseColor, intensity, idleIntensity, glow, shineSize, shineFade, thickness, speed, followMouse, proximity, autoAnimate]);
 
   useEffect(() => {
     const btn = btnRef.current;
@@ -164,7 +173,7 @@ export default function SpecularButton({
 
     const dpr = window.devicePixelRatio || 1;
     let renderer: Renderer | null = null;
-    let gl: any = null;
+    let gl: OGLRenderingContext | null = null;
     try {
       renderer = new Renderer({ alpha: true, premultipliedAlpha: true, antialias: true, dpr });
       gl = renderer.gl;
@@ -203,11 +212,12 @@ export default function SpecularButton({
     const mesh = new Mesh(gl, { geometry, program });
     fx.appendChild(gl.canvas);
 
-    const sizeRef = { w: 1, h: 1 };
+    const sizeRef = { w: 0, h: 0 };
     const resize = () => {
-      const rect = btn.getBoundingClientRect();
-      const w = rect.width;
-      const h = rect.height;
+      const w = Math.round(btn.offsetWidth);
+      const h = Math.round(btn.offsetHeight);
+      if (w <= 0 || h <= 0) return;
+      if (Math.abs(w - sizeRef.w) <= 1 && Math.abs(h - sizeRef.h) <= 1) return;
       sizeRef.w = w;
       sizeRef.h = h;
       renderer.setSize(w + PAD * 2, h + PAD * 2);
@@ -261,7 +271,7 @@ export default function SpecularButton({
       const diff = ((target - angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
       angle += diff * (1 - Math.exp(-dt * 7));
 
-      const brightTarget = p.autoAnimate ? 1 : proximityT;
+      const brightTarget = p.autoAnimate ? 1 : Math.max(p.idleIntensity, proximityT);
       bright += (brightTarget - bright) * (1 - Math.exp(-dt * 8));
 
       lineC.set(p.lineColor);
@@ -270,7 +280,7 @@ export default function SpecularButton({
       program.uniforms.uRadius.value = Math.min(p.radius, Math.min(sizeRef.w, sizeRef.h) / 2) * dpr;
       program.uniforms.uLineColor.value = [lineC.r, lineC.g, lineC.b];
       program.uniforms.uBaseColor.value = [baseC.r, baseC.g, baseC.b];
-      program.uniforms.uIntensity.value = p.intensity * bright;
+      program.uniforms.uIntensity.value = p.intensity * p.glow * bright;
       program.uniforms.uShineSize.value = (p.shineSize * Math.PI) / 180;
       program.uniforms.uShineFade.value = (p.shineFade * Math.PI) / 180;
       program.uniforms.uThickness.value = p.thickness * dpr;
@@ -296,6 +306,7 @@ export default function SpecularButton({
       className={`specular-button specular-button--${size}${className ? ` ${className}` : ''}`}
       style={{
         ...style,
+        '--sb-bg': bg || undefined,
         '--sb-radius': `${radius}px`,
         '--sb-tint': tint,
         '--sb-tint-opacity': tintOpacity,

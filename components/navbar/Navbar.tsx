@@ -205,31 +205,34 @@ function NavbarInner({ alwaysVisible = false }: NavbarProps = {}) {
           })}
         </div>
 
-        {/* RIGHT: SpecularButton CTA Action */}
+        {/* RIGHT: Minimal Luxury Highlighted CTA Button */}
         <div className="flex items-center gap-1.5 xs:gap-2.5 sm:gap-3 z-10 flex-shrink-0">
           <Link href="/check-email" className="inline-flex">
             <SpecularButton
               size="sm"
+              bg="#0c0f19"
               radius={999}
               tint="#ffffff"
               tintOpacity={0.06}
-              blur={10}
+              blur={16}
               textColor="#ffffff"
               lineColor="#ffffff"
-              baseColor="#3a3a4c"
-              intensity={1.2}
-              shineSize={14}
-              shineFade={40}
-              thickness={1.1}
+              baseColor="#f59e0b"
+              intensity={1.25}
+              idleIntensity={0.4}
+              shineSize={18}
+              shineFade={35}
+              thickness={1.3}
+              glow={1.2}
               speed={0.35}
               followMouse
               proximity={220}
               autoAnimate={false}
-              className="!font-display !font-normal !text-[9px] xs:!text-[11px] sm:!text-xs !tracking-[0.14em] uppercase !py-1.5 xs:!py-2 !px-2.5 xs:!px-3.5 sm:!px-5 !rounded-full select-none cursor-pointer"
+              className="!font-display !font-normal !text-[9px] xs:!text-[11px] sm:!text-xs !tracking-[0.14em] uppercase !py-1.5 xs:!py-2 !px-2.5 xs:!px-3.5 sm:!px-5 !rounded-full select-none cursor-pointer border border-amber-400/40 hover:border-amber-400/80 shadow-[0_4px_20px_rgba(0,0,0,0.65),0_0_14px_rgba(245,158,11,0.2)] hover:shadow-[0_4px_24px_rgba(0,0,0,0.7),0_0_20px_rgba(245,158,11,0.32)] transition-all duration-300"
             >
               <span>CLAIM YOUR PASS</span>
               <svg
-                className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-3.5 sm:h-3.5 text-white/90 flex-shrink-0"
+                className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-3.5 sm:h-3.5 text-amber-400 flex-shrink-0 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
