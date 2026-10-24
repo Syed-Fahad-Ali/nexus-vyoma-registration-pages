@@ -43,6 +43,19 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Newest first.
 
+### 2026-10-24 — Fix Next.js 16 Partial Prerendering Build Failure on `/payment/success`
+
+**Done**
+- **Encapsulated `searchParams` Inside `<Suspense>` Boundary (`app/payment/success/page.tsx`)**:
+  - Resolved Vercel deployment error (`Next.js encountered uncached or runtime data during prerendering: searchParams accessed outside of <Suspense>`).
+  - Restored `SuccessPage` as a synchronous page component wrapping `SuccessContent` inside `<Suspense>`.
+  - Moved `searchParams` resolution and `isEntryTicket` layout routing inside `SuccessContent` so the static page shell prerenders successfully.
+  - Verified local production build (`npm run build`): compiled 42/42 static routes with exit code 0 (`◐ /payment/success` partial prerender enabled).
+
+**Files changed**
+- `app/payment/success/page.tsx`
+- `README.md`
+
 ### 2026-10-24 — Fix Gray Bounding Box Artifact on Discovery Headline Accent
 
 **Done**

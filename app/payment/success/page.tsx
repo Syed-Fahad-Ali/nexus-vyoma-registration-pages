@@ -131,10 +131,7 @@ function loadPremiumPaidEvents(): PaidEventSummary[] {
   return SEQUENCED_TARGETS;
 }
 
-async function SuccessContent({
-  searchParams,
-  isEntryTicket,
-}: SuccessPageProps & { isEntryTicket: boolean }) {
+async function SuccessContent({ searchParams }: SuccessPageProps) {
   const params = searchParams ? await searchParams : {};
 
   const getParam = (key: string): string | undefined => {
@@ -161,51 +158,51 @@ async function SuccessContent({
     getParam('team_members') ||
     getParam('members');
 
-  // If this is an Entry Pass checkout, render the redesigned 30/70 experience
-  if (isEntryTicket) {
-    const paidEvents = loadPremiumPaidEvents();
-    return (
-      <EntryPassSuccessView
-        transactionId={transactionId}
-        orderId={orderId}
-        teamName={teamName}
-        teamMembers={teamMembers}
-        events={paidEvents}
-      />
-    );
-  }
-
-  // Final event-enrolment checkout remains completely unchanged
-  return (
-    <StatusCard
-      status="success"
-      transactionId={transactionId}
-      orderId={orderId}
-      teamName={teamName}
-      teamMembers={teamMembers}
-    />
-  );
-}
-
-export default async function SuccessPage(props: SuccessPageProps) {
-  const params = props.searchParams ? await props.searchParams : {};
-  const orderId =
-    typeof params.order_id === 'string'
-      ? params.order_id
-      : Array.isArray(params.order_id) && typeof params.order_id[0] === 'string'
-      ? params.order_id[0]
-      : undefined;
-
   // Distinguish Entry Pass vs Event Enrolment purely from order prefix / presence
   const isEntryTicket =
     (!orderId || orderId.startsWith('NVET_')) &&
     !orderId?.startsWith('NV_');
 
+  // If this is an Entry Pass checkout, render the redesigned 30/70 experience
+  if (isEntryTicket) {
+    const paidEvents = loadPremiumPaidEvents();
+    return (
+      <StatusLayout isDiscovery={true}>
+        <EntryPassSuccessView
+          transactionId={transactionId}
+          orderId={orderId}
+          teamName={teamName}
+          teamMembers={teamMembers}
+          events={paidEvents}
+        />
+      </StatusLayout>
+    );
+  }
+
+  // Final event-enrolment checkout remains completely unchanged
   return (
-    <StatusLayout isDiscovery={isEntryTicket}>
-      <Suspense fallback={isEntryTicket ? null : <StatusCard status="success" orderId={orderId} />}>
-        <SuccessContent {...props} isEntryTicket={isEntryTicket} />
-      </Suspense>
+    <StatusLayout isDiscovery={false}>
+      <StatusCard
+        status="success"
+        transactionId={transactionId}
+        orderId={orderId}
+        teamName={teamName}
+        teamMembers={teamMembers}
+      />
     </StatusLayout>
+  );
+}
+
+export default function SuccessPage(props: SuccessPageProps) {
+  return (
+    <Suspense
+      fallback={
+        <StatusLayout>
+          <StatusCard status="success" />
+        </StatusLayout>
+      }
+    >
+      <SuccessContent {...props} />
+    </Suspense>
   );
 }
