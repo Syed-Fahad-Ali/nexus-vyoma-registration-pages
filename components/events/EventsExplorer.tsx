@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import type { CatalogEvent } from '@/lib/data/eventsCatalog';
+import { sortEventsByIndex, type CatalogEvent } from '@/lib/data/eventsCatalog';
 import EventCard from './EventCard';
 import EventsTitleRolling from './EventsTitleRolling';
 
@@ -114,7 +114,7 @@ export default function EventsExplorer({ events }: EventsExplorerProps) {
 
   // Filter computation
   const filteredEvents = useMemo(() => {
-    return events.filter((event: CatalogEvent) => {
+    const matched = events.filter((event: CatalogEvent) => {
       // Date filter
       if (selectedDates.length > 0 && !selectedDates.includes(event.date)) {
         return false;
@@ -135,6 +135,8 @@ export default function EventsExplorer({ events }: EventsExplorerProps) {
 
       return true;
     });
+
+    return sortEventsByIndex(matched);
   }, [events, selectedDates, selectedCategories, flagshipOnly]);
 
   const hasActiveFilters =

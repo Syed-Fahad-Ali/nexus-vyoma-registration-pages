@@ -6,6 +6,7 @@ import EventsExplorer from '@/components/events/EventsExplorer';
 import FooterSection from '@/components/footer/FooterSection';
 import {
   mapApiEventToCatalog,
+  sortEventsByIndex,
   type ApiEvent,
   type CatalogEvent,
 } from '@/lib/data/eventsCatalog';
@@ -33,7 +34,9 @@ async function loadEvents(): Promise<CatalogEvent[]> {
     if (!res.ok) return [];
 
     const json = (await res.json()) as { data?: ApiEvent[] | null };
-    return (json.data ?? []).map((doc, i) => mapApiEventToCatalog(doc, i));
+    const rawEvents = json.data ?? [];
+    const sortedDocs = sortEventsByIndex(rawEvents);
+    return sortedDocs.map((doc, i) => mapApiEventToCatalog(doc, i));
   } catch {
     return [];
   }

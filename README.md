@@ -43,6 +43,15 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Newest first.
 
+### 2026-10-27 — Event Index Sorting for /events Page
+
+**Done**
+- **Events Model & Interfaces**: Added `index: { type: Number, default: 0 }` to `database/schema/event.schema.ts` and updated `ApiEvent` and `CatalogEvent` in `lib/data/eventsCatalog.ts` with `index?: number | null`.
+- **Index-Based Comparator**: Implemented `sortEventsByIndex` utility in `lib/data/eventsCatalog.ts` where positive numerical indices (`1, 2, 3...`) sort first in ascending order, and non-positive, null, or zero indices are positioned below them while preserving relative order.
+- **Server Component Sorting**: Updated `loadEvents()` in `app/events/page.tsx` to sort events immediately after fetch, ensuring SSR initial render delivers correctly ordered events with matching `mockId` indices.
+- **Client Filter Integration**: Integrated `sortEventsByIndex` into `filteredEvents` in `components/events/EventsExplorer.tsx` so user filtering by date, category, or flagship preserves the exact `index` ordering.
+- **Verification**: Ran `npm run build` with Turbopack and TypeScript verification passed with zero errors.
+
 ### 2026-10-27 — Paid Events Horizontal Side-by-Side Cards & Scroll Controls
 
 **Done**

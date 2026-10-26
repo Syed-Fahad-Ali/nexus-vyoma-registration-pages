@@ -68,6 +68,10 @@ const eventSchema = new mongoose.Schema({
         default: 1,
         min: 1
     },
+    index: {
+        type: Number,
+        default: 0
+    },
 }, { timestamps: true, overwriteModels: true });
 
 const Event = mongoose.models.Event || mongoose.model("Event", eventSchema);

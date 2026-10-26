@@ -19,6 +19,7 @@ export interface CatalogEvent {
   registrationUrl?: string | null;
   isFlagship: boolean;
   statusNote?: string;
+  index?: number | null;
 }
 
 export const SAMPLE_EVENT: CatalogEvent = {
@@ -341,6 +342,47 @@ export interface ApiEvent {
   min_team_size?: number;
   max_team_size?: number;
   requirements?: string[];
+  index?: number | null;
+}
+
+/**
+ * Sorts events according to their `index` field:
+ * - Positive numerical indices (1, 2, 3...) appear first, in ascending order (1st, 2nd, 3rd...).
+ * - Indices that are null, undefined, 0, or non-positive are placed below all positive indexed events.
+ * - Relative stable order is preserved among events with identical or null/0 indices.
+ */
+export function sortEventsByIndex<T extends { index?: number | null }>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    const rawA = a.index;
+    const rawB = b.index;
+
+    const numA =
+      typeof rawA === 'number'
+        ? rawA
+        : rawA !== null && rawA !== undefined && rawA !== ''
+        ? Number(rawA)
+        : null;
+    const numB =
+      typeof rawB === 'number'
+        ? rawB
+        : rawB !== null && rawB !== undefined && rawB !== ''
+        ? Number(rawB)
+        : null;
+
+    const validA = numA !== null && !Number.isNaN(numA) && numA > 0;
+    const validB = numB !== null && !Number.isNaN(numB) && numB > 0;
+
+    if (validA && validB) {
+      return (numA as number) - (numB as number);
+    }
+    if (validA && !validB) {
+      return -1;
+    }
+    if (!validA && validB) {
+      return 1;
+    }
+    return 0;
+  });
 }
 
 /** Pure mapper: API event document -> UI model. No network / DB access. */
@@ -376,6 +418,16 @@ export function mapApiEventToCatalog(doc: ApiEvent, index = 0): CatalogEvent {
   const isFree = fee === 0;
   const prize = (doc.prize || '').trim();
 
+  const rawIndex = doc.index;
+  const parsedIndex =
+    typeof rawIndex === 'number'
+      ? rawIndex
+      : rawIndex !== null && rawIndex !== undefined && rawIndex !== ''
+      ? Number(rawIndex)
+      : null;
+  const eventIndex =
+    parsedIndex !== null && !Number.isNaN(parsedIndex) ? parsedIndex : null;
+
   return {
     id: String(doc._id),
     slug: String(doc._id),
@@ -402,5 +454,6 @@ export function mapApiEventToCatalog(doc: ApiEvent, index = 0): CatalogEvent {
     imageUrl: doc.image_url || undefined,
     isFlagship: Boolean(doc.isFlatship),
     statusNote: isFree ? 'Included with official festival entry pass.' : undefined,
+    index: eventIndex,
   };
 }
