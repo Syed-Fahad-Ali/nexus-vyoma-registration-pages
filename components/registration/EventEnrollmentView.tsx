@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
@@ -16,7 +16,7 @@ export interface SerializedEvent {
   participants_type?: 'individual' | 'team';
   team_size?: number;
   min_team_size?: number;
-  max_team_size?: number;
+  max_team_size?: number; 
   category?: string;
 }
 
@@ -115,6 +115,9 @@ export default function EventEnrollmentView({
   // Refresh trigger for synchronizing after manual user actions
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  // Logout confirmation state
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
   // Sequential API calls & Master Catalog Sync:
   // Fetches /api/event to maintain full metadata for all events, preventing any enrolled events from losing their details.
   // 1. Call GET /api/enrollement/enrolled-event (paid events)
@@ -169,38 +172,52 @@ export default function EventEnrollmentView({
           const rawPaidInd = (paidJson.data.paidEvents.individualEvents || []) as Record<string, unknown>[];
           const rawPaidTm = (paidJson.data.paidEvents.teamEvents || []) as Record<string, unknown>[];
 
-          setIndividualPaid(
-            rawPaidInd.map((doc) => {
-              const eventId = String(doc.event_id);
-              const matched = masterCatalog.find((m) => m._id === eventId);
-              return {
-                _id: String(doc._id),
-                event_id: eventId,
-                event_title: matched?.title || (doc.event_title ? String(doc.event_title) : 'Enrolled Event'),
-                participation_type: 'individual' as const,
-                event_details: matched || (doc.event_details as SerializedEvent | undefined) || null,
-              };
-            })
-          );
+          // Read stored free events from localStorage so API re-sync doesn't erase them
+          let storedFreeInd: SerializedEnrolledEvent[] = [];
+          let storedFreeTm: SerializedEnrolledEvent[] = [];
+          try {
+            const stored = localStorage.getItem(`nv_free_enrolled_${userEmail || 'attendee'}`);
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              if (Array.isArray(parsed?.individual)) storedFreeInd = parsed.individual;
+              if (Array.isArray(parsed?.team)) storedFreeTm = parsed.team;
+            }
+          } catch {
+            // ignore
+          }
 
-          setTeamPaid(
-            rawPaidTm.map((doc) => {
-              const eventId = String(doc.event_id);
-              const matched = masterCatalog.find((m) => m._id === eventId);
-              const teamEmails = Array.isArray(doc.team_emails) ? (doc.team_emails as string[]) : [];
-              return {
-                _id: String(doc._id),
-                event_id: eventId,
-                event_title: matched?.title || (doc.event_title ? String(doc.event_title) : 'Team Competition'),
-                participation_type: 'team' as const,
-                team_name: doc.team_name ? String(doc.team_name) : null,
-                team_leader_email: userEmail,
-                team_size: typeof doc.team_length === 'number' ? doc.team_length : teamEmails.length + 1,
-                team_members: teamEmails,
-                event_details: matched || (doc.event_details as SerializedEvent | undefined) || null,
-              };
-            })
-          );
+          const serverInd = rawPaidInd.map((doc) => {
+            const eventId = String(doc.event_id);
+            const matched = masterCatalog.find((m) => m._id === eventId);
+            return {
+              _id: String(doc._id),
+              event_id: eventId,
+              event_title: matched?.title || (doc.event_title ? String(doc.event_title) : 'Enrolled Event'),
+              participation_type: 'individual' as const,
+              event_details: matched || (doc.event_details as SerializedEvent | undefined) || null,
+            };
+          });
+          const serverIndIds = new Set(serverInd.map((s) => s.event_id));
+          setIndividualPaid([...serverInd, ...storedFreeInd.filter((f) => !serverIndIds.has(f.event_id))]);
+
+          const serverTm = rawPaidTm.map((doc) => {
+            const eventId = String(doc.event_id);
+            const matched = masterCatalog.find((m) => m._id === eventId);
+            const teamEmails = Array.isArray(doc.team_emails) ? (doc.team_emails as string[]) : [];
+            return {
+              _id: String(doc._id),
+              event_id: eventId,
+              event_title: matched?.title || (doc.event_title ? String(doc.event_title) : 'Team Competition'),
+              participation_type: 'team' as const,
+              team_name: doc.team_name ? String(doc.team_name) : null,
+              team_leader_email: userEmail,
+              team_size: typeof doc.team_length === 'number' ? doc.team_length : teamEmails.length + 1,
+              team_members: teamEmails,
+              event_details: matched || (doc.event_details as SerializedEvent | undefined) || null,
+            };
+          });
+          const serverTmIds = new Set(serverTm.map((s) => s.event_id));
+          setTeamPaid([...serverTm, ...storedFreeTm.filter((f) => !serverTmIds.has(f.event_id))]);
         }
 
         // --- Call 2: GET /api/enrollement/enroll-event (available & pending reservations) ---
@@ -325,6 +342,7 @@ export default function EventEnrollmentView({
     };
   }, []);
 
+
   // Filter available events excluding already enrolled (paid OR pending) & already selected
   const alreadyEnrolledIds = new Set([
     ...individualPaid.map((e) => e.event_id),
@@ -348,6 +366,303 @@ export default function EventEnrollmentView({
       !alreadyEnrolledIds.has(ev._id) &&
       !selectedTeamEvents.some((t) => t.eventId === ev._id)
   );
+
+  // Local storage persistence helper for free events
+  const freeEventsStorageKey = `nv_free_enrolled_${userEmail || 'attendee'}`;
+
+  const isFreeEventObj = (evId: string, details?: SerializedEvent | null) => {
+    if (details && (details.entry_fee === 0 || !details.entry_fee)) return true;
+    const inMaster = eventsList.find((m) => m._id === evId);
+    if (inMaster && (!inMaster.entry_fee || inMaster.entry_fee === 0)) return true;
+    return false;
+  };
+
+  const saveFreeEventsToStorage = (indEvents: SerializedEnrolledEvent[], tmEvents: SerializedEnrolledEvent[]) => {
+    if (typeof window === 'undefined') return;
+    try {
+      const freeInd = indEvents.filter((e) => isFreeEventObj(e.event_id, e.event_details));
+      const freeTm = tmEvents.filter((e) => isFreeEventObj(e.event_id, e.event_details));
+      localStorage.setItem(freeEventsStorageKey, JSON.stringify({ individual: freeInd, team: freeTm }));
+    } catch {
+      // ignore
+    }
+  };
+
+  // Restore free enrolled events from localStorage on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const stored = localStorage.getItem(freeEventsStorageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed?.individual) && parsed.individual.length > 0) {
+          setIndividualPaid((prev) => {
+            const existing = new Set(prev.map((e) => e.event_id));
+            const toAdd = parsed.individual.filter((e: SerializedEnrolledEvent) => !existing.has(e.event_id));
+            return [...prev, ...toAdd];
+          });
+        }
+        if (Array.isArray(parsed?.team) && parsed.team.length > 0) {
+          setTeamPaid((prev) => {
+            const existing = new Set(prev.map((e) => e.event_id));
+            const toAdd = parsed.team.filter((e: SerializedEnrolledEvent) => !existing.has(e.event_id));
+            return [...prev, ...toAdd];
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [freeEventsStorageKey]);
+
+  // Free events dropdown effect & enrollment states
+  const [isFreeEventsOpen, setIsFreeEventsOpen] = useState(true);
+  const freeEvents = eventsList.filter((e) => !e.entry_fee || e.entry_fee === 0);
+
+  // Horizontal scroll controls for Free Events Catalog
+  const freeEventsScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeftFree, setCanScrollLeftFree] = useState(false);
+  const [canScrollRightFree, setCanScrollRightFree] = useState(true);
+
+  const checkFreeScroll = useCallback(() => {
+    if (freeEventsScrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = freeEventsScrollRef.current;
+      setCanScrollLeftFree(scrollLeft > 10);
+      setCanScrollRightFree(scrollLeft < scrollWidth - clientWidth - 10);
+    }
+  }, []);
+
+  const scrollFreeEvents = (direction: 'left' | 'right') => {
+    if (freeEventsScrollRef.current) {
+      const scrollAmount = 330;
+      freeEventsScrollRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth',
+      });
+      setTimeout(checkFreeScroll, 350);
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(checkFreeScroll, 150);
+    const handleResize = () => checkFreeScroll();
+    window.addEventListener('resize', handleResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [isFreeEventsOpen, checkFreeScroll]);
+
+  // Horizontal scroll controls for Paid Events
+  const paidEventsScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeftPaid, setCanScrollLeftPaid] = useState(false);
+  const [canScrollRightPaid, setCanScrollRightPaid] = useState(false);
+
+  const checkPaidScroll = useCallback(() => {
+    if (paidEventsScrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = paidEventsScrollRef.current;
+      setCanScrollLeftPaid(scrollLeft > 10);
+      setCanScrollRightPaid(scrollLeft < scrollWidth - clientWidth - 10);
+    }
+  }, []);
+
+  const scrollPaidEvents = (direction: 'left' | 'right') => {
+    if (paidEventsScrollRef.current) {
+      const scrollAmount = 330;
+      paidEventsScrollRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth',
+      });
+      setTimeout(checkPaidScroll, 350);
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(checkPaidScroll, 150);
+    const handleResize = () => checkPaidScroll();
+    window.addEventListener('resize', handleResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [individualPaid.length, teamPaid.length, checkPaidScroll]);
+
+  // Paid Team Squad Inspection Modal State
+  const [viewSquadTeamEvent, setViewSquadTeamEvent] = useState<SerializedEnrolledEvent | null>(null);
+
+  // Free Team Squad Modal State
+  const [freeTeamModalEvent, setFreeTeamModalEvent] = useState<SerializedEvent | null>(null);
+  const [modalTeamName, setModalTeamName] = useState('');
+  const [modalPendingEmail, setModalPendingEmail] = useState('');
+  const [modalVerifiedMembers, setModalVerifiedMembers] = useState<VerifiedMember[]>([]);
+  const [modalVerifying, setModalVerifying] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+
+  const openFreeTeamModal = (event: SerializedEvent) => {
+    setFreeTeamModalEvent(event);
+    setModalTeamName('');
+    setModalPendingEmail('');
+    setModalVerifiedMembers([]);
+    setModalError(null);
+  };
+
+  const closeFreeTeamModal = () => {
+    setFreeTeamModalEvent(null);
+    setModalTeamName('');
+    setModalPendingEmail('');
+    setModalVerifiedMembers([]);
+    setModalError(null);
+  };
+
+  const handleVerifyModalMember = async () => {
+    if (!freeTeamModalEvent) return;
+    const email = modalPendingEmail.trim().toLowerCase();
+    setModalError(null);
+
+    if (!email) {
+      setModalError('Please enter a teammate email.');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setModalError('Please enter a valid email format.');
+      return;
+    }
+    if (email === userEmail.toLowerCase()) {
+      setModalError('You are already registered as Team Leader. Enter your teammate’s email.');
+      return;
+    }
+    if (modalVerifiedMembers.some((m) => m.email.toLowerCase() === email)) {
+      setModalError('This teammate is already added.');
+      return;
+    }
+    const maxTeammates = Math.max(0, (freeTeamModalEvent.max_team_size ?? freeTeamModalEvent.team_size ?? 2) - 1);
+    if (modalVerifiedMembers.length >= maxTeammates) {
+      setModalError(`Maximum squad size reached (${maxTeammates + 1} members total).`);
+      return;
+    }
+
+    setModalVerifying(true);
+    try {
+      const res = await fetch('/api/enrollement/check-team-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const result = await res.json().catch(() => null);
+      if (res.ok && res.status === 200) {
+        setModalVerifiedMembers((prev) => [
+          ...prev,
+          {
+            email,
+            name: result?.data?.name || email.split('@')[0],
+            phone: result?.data?.phone || '',
+          },
+        ]);
+        setModalPendingEmail('');
+      } else {
+        setModalError(
+          result?.message || 'Teammate email not found or has not purchased an Entry Pass yet.'
+        );
+      }
+    } catch {
+      setModalError('Network error checking teammate email. Please try again.');
+    } finally {
+      setModalVerifying(false);
+    }
+  };
+
+  const handleRemoveModalMember = (email: string) => {
+    setModalVerifiedMembers((prev) => prev.filter((m) => m.email !== email));
+  };
+
+  const handleConfirmFreeTeamEnrollment = () => {
+    if (!freeTeamModalEvent) return;
+    const trimmedName = modalTeamName.trim();
+    if (!trimmedName) {
+      setModalError('Please enter a team name.');
+      return;
+    }
+    const minTeammates = Math.max(0, (freeTeamModalEvent.min_team_size ?? 2) - 1);
+    if (modalVerifiedMembers.length < minTeammates) {
+      setModalError(
+        `This competition requires at least ${minTeammates} teammate(s). Currently added: ${modalVerifiedMembers.length}.`
+      );
+      return;
+    }
+
+    const newFreeTeam: SerializedEnrolledEvent = {
+      _id: `free-team-${freeTeamModalEvent._id}-${Date.now()}`,
+      event_id: freeTeamModalEvent._id,
+      event_title: freeTeamModalEvent.title,
+      participation_type: 'team',
+      team_name: trimmedName,
+      team_leader_name: userName,
+      team_leader_email: userEmail,
+      team_members: modalVerifiedMembers.map((m) => m.email),
+      team_member_details: modalVerifiedMembers,
+      event_details: freeTeamModalEvent,
+    };
+
+    setTeamPaid((prev) => {
+      const updated = [...prev, newFreeTeam];
+      saveFreeEventsToStorage(individualPaid, updated);
+      return updated;
+    });
+
+    setFeedbackSuccess(`Squad "${trimmedName}" successfully enrolled in ${freeTeamModalEvent.title}!`);
+    closeFreeTeamModal();
+  };
+
+  const handleUnenrollFreeEvent = (event: SerializedEvent) => {
+    const isTeam = event.participants_type === 'team';
+    if (isTeam) {
+      setTeamPaid((prev) => {
+        const updated = prev.filter((e) => e.event_id !== event._id);
+        saveFreeEventsToStorage(individualPaid, updated);
+        return updated;
+      });
+    } else {
+      setIndividualPaid((prev) => {
+        const updated = prev.filter((e) => e.event_id !== event._id);
+        saveFreeEventsToStorage(updated, teamPaid);
+        return updated;
+      });
+    }
+    setFeedbackSuccess(`Unenrolled from ${event.title}`);
+  };
+
+  const handleToggleFreeEnrollment = (event: SerializedEvent) => {
+    const isTeam = event.participants_type === 'team';
+    const isEnrolled = isTeam
+      ? teamPaid.some((e) => e.event_id === event._id)
+      : individualPaid.some((e) => e.event_id === event._id);
+
+    if (isEnrolled) {
+      handleUnenrollFreeEvent(event);
+      return;
+    }
+
+    if (isTeam) {
+      openFreeTeamModal(event);
+    } else {
+      // Individual Free Event: Instantly enroll & display in Selected & Enrolled Events
+      const newFreeInd: SerializedEnrolledEvent = {
+        _id: `free-ind-${event._id}-${Date.now()}`,
+        event_id: event._id,
+        event_title: event.title,
+        participation_type: 'individual',
+        event_details: event,
+      };
+      setIndividualPaid((prev) => {
+        const updated = [...prev, newFreeInd];
+        saveFreeEventsToStorage(updated, teamPaid);
+        return updated;
+      });
+      setSelectedIndividualIds((prev) => prev.filter((id) => id !== event._id));
+      setFeedbackSuccess(`Successfully enrolled in ${event.title}! Saved to your Enrolled Events.`);
+    }
+  };
 
   // Add individual event to pending selection
   const handleSelectIndividualEvent = (eventId: string) => {
@@ -683,23 +998,35 @@ export default function EventEnrollmentView({
   };
 
   // Checkout submission
-  // The backend route handles ONE event per POST call, so we make sequential requests.
+  // Handles free events directly in state and paid events via the sequential backend route
   const handleProceedToCheckout = async () => {
     setFeedbackError(null);
     setFeedbackSuccess(null);
 
-    // Allow checkout if either new events are staged OR existing pending reservations exist
+    // Filter staged items by fee
+    const stagedPaidIndividual = selectedIndividualIds.filter((id) => {
+      const ev = eventsList.find((e) => e._id === id);
+      return (ev?.entry_fee || 0) > 0;
+    });
+    const stagedFreeIndividual = selectedIndividualIds.filter((id) => {
+      const ev = eventsList.find((e) => e._id === id);
+      return !ev?.entry_fee || ev.entry_fee === 0;
+    });
+
+    const stagedPaidTeam = selectedTeamEvents.filter((t) => {
+      const ev = eventsList.find((e) => e._id === t.eventId);
+      return (ev?.entry_fee || 0) > 0;
+    });
+    const stagedFreeTeam = selectedTeamEvents.filter((t) => {
+      const ev = eventsList.find((e) => e._id === t.eventId);
+      return !ev?.entry_fee || ev.entry_fee === 0;
+    });
+
     const hasStaged = selectedIndividualIds.length > 0 || selectedTeamEvents.length > 0;
     const hasPendingReservations = pendingIndividual.length > 0 || pendingTeam.length > 0;
 
     if (!hasStaged && !hasPendingReservations) {
       setFeedbackError('Please select at least one event from the catalog.');
-      return;
-    }
-
-    // If user has pending reservations but hasn't staged new events, go straight to checkout
-    if (!hasStaged && hasPendingReservations) {
-      router.push('/register/checkout-event');
       return;
     }
 
@@ -723,8 +1050,63 @@ export default function EventEnrollmentView({
     setSubmitting(true);
 
     try {
-      // --- Individual events: one POST per event ---
-      for (const eventId of selectedIndividualIds) {
+      // 1. Process free events directly into enrolled state
+      if (stagedFreeIndividual.length > 0) {
+        const newFreeInd = stagedFreeIndividual.map((id) => {
+          const ev = eventsList.find((e) => e._id === id);
+          return {
+            _id: `free-ind-${id}-${Date.now()}`,
+            event_id: id,
+            event_title: ev?.title || 'Free Competition',
+            participation_type: 'individual' as const,
+            event_details: ev,
+          };
+        });
+        setIndividualPaid((prev) => {
+          const updated = [...prev, ...newFreeInd];
+          saveFreeEventsToStorage(updated, teamPaid);
+          return updated;
+        });
+        setSelectedIndividualIds((prev) => prev.filter((id) => !stagedFreeIndividual.includes(id)));
+      }
+
+      if (stagedFreeTeam.length > 0) {
+        const newFreeTeam = stagedFreeTeam.map((tItem) => {
+          const ev = eventsList.find((e) => e._id === tItem.eventId);
+          return {
+            _id: `free-team-${tItem.eventId}-${Date.now()}`,
+            event_id: tItem.eventId,
+            event_title: ev?.title || 'Free Team Event',
+            participation_type: 'team' as const,
+            team_name: tItem.teamName.trim(),
+            team_leader_name: userName,
+            team_leader_email: userEmail,
+            team_members: tItem.teamMembers,
+            team_member_details: tItem.verifiedDetails,
+            event_details: ev,
+          };
+        });
+        setTeamPaid((prev) => {
+          const updated = [...prev, ...newFreeTeam];
+          saveFreeEventsToStorage(individualPaid, updated);
+          return updated;
+        });
+        setSelectedTeamEvents((prev) =>
+          prev.filter((t) => !stagedFreeTeam.some((f) => f.eventId === t.eventId))
+        );
+      }
+
+      // 2. If there are NO paid events to purchase, complete right away
+      const hasPaidItems =
+        stagedPaidIndividual.length > 0 || stagedPaidTeam.length > 0 || hasPendingReservations;
+      if (!hasPaidItems) {
+        setFeedbackSuccess('Successfully enrolled in your free events! View your squad details in Enrolled Events.');
+        setSubmitting(false);
+        return;
+      }
+
+      // 3. Paid Individual events: one POST per event
+      for (const eventId of stagedPaidIndividual) {
         const res = await fetch('/api/enrollement/enroll-event', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -742,8 +1124,8 @@ export default function EventEnrollmentView({
         }
       }
 
-      // --- Team events: one POST per event ---
-      for (const teamItem of selectedTeamEvents) {
+      // 4. Paid Team events: one POST per event
+      for (const teamItem of stagedPaidTeam) {
         const teamEmails = teamItem.teamMembers.filter((m) => m.trim() !== '');
         const res = await fetch('/api/enrollement/enroll-event', {
           method: 'POST',
@@ -777,10 +1159,16 @@ export default function EventEnrollmentView({
     }
   };
 
+  const handleLogout = () => {
+    document.cookie = 'nv-session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+    document.cookie = 'nv-session-temp=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+    window.location.href = '/register/check-email';
+  };
+
   return (
     <div className="w-full max-w-5xl mx-auto flex flex-col gap-10 text-white pb-20">
       {/* 01 — Top Personalized Greeting */}
-      <div className="flex flex-col gap-1 pt-2">
+      <div className="flex items-center justify-between gap-4 pt-2">
         <h1 className="text-2xl sm:text-3xl font-display font-bold uppercase tracking-wider text-white">
           Hi,{' '}
           <span className="text-[#FF6A00] drop-shadow-[0_0_20px_rgba(255,106,0,0.4)]">
@@ -788,18 +1176,426 @@ export default function EventEnrollmentView({
           </span>{' '}
           :)
         </h1>
+
+        <button
+          type="button"
+          onClick={() => setShowLogoutConfirm(true)}
+          className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-subheading font-medium tracking-wider uppercase text-red-500 hover:text-red-400 transition-colors cursor-pointer shrink-0"
+        >
+          <span>Log out</span>
+          <svg
+            className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-current"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+            />
+          </svg>
+        </button>
       </div>
 
-      {/* 02 — Unified Paid Events Container (Individual & Team) */}
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="logout-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowLogoutConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/[0.12] bg-[#07090E] p-6 flex flex-col gap-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col gap-1.5 text-center">
+              <div className="w-10 h-10 rounded-full bg-red-500/10 text-red-500 mx-auto flex items-center justify-center mb-1 border border-red-500/20">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </div>
+              <h3 id="logout-dialog-title" className="font-subheading font-medium text-lg text-white">
+                Log Out Confirmation
+              </h3>
+              <p className="text-xs text-zinc-400">
+                Are you sure you want to log out of your session?
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(false)}
+                className="py-2.5 px-4 rounded-xl text-xs font-mono font-medium uppercase tracking-wider text-zinc-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="py-2.5 px-4 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-white bg-red-600 hover:bg-red-500 shadow-[0_0_20px_rgba(239,68,68,0.3)] transition-all cursor-pointer"
+              >
+                Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Free Team Squad Enrollment Modal */}
+      {freeTeamModalEvent && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="free-team-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={closeFreeTeamModal}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-emerald-500/40 bg-[#07090E] p-5 sm:p-6 flex flex-col gap-5 shadow-[0_0_50px_rgba(16,185,129,0.15)] max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-white/[0.08] pb-3">
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-mono text-emerald-400 font-semibold px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/25 uppercase tracking-wider self-start">
+                  FREE TEAM ENROLLMENT
+                </span>
+                <h3 id="free-team-dialog-title" className="font-subheading font-medium text-base sm:text-lg text-white">
+                  {freeTeamModalEvent.title}
+                </h3>
+                <span className="text-xs font-mono text-zinc-400">
+                  Squad Size: Min {freeTeamModalEvent.min_team_size || 2} – Max {freeTeamModalEvent.max_team_size || freeTeamModalEvent.team_size || 2} members
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={closeFreeTeamModal}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+                aria-label="Close modal"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex flex-col gap-4 text-xs">
+              {/* Team Name */}
+              <div className="flex flex-col gap-1.5">
+                <label className="font-mono text-[11px] uppercase tracking-wider text-zinc-300">
+                  Team Name <span className="text-emerald-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={modalTeamName}
+                  onChange={(e) => {
+                    setModalTeamName(e.target.value);
+                    if (modalError) setModalError(null);
+                  }}
+                  placeholder="e.g. Apex Predators"
+                  className="w-full bg-black/60 text-white font-sans text-xs px-3.5 py-2.5 rounded-xl border border-white/[0.12] focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Team Leader (Read-only) */}
+              <div className="flex flex-col gap-1.5">
+                <label className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">
+                  Team Leader (You)
+                </label>
+                <input
+                  type="text"
+                  value={`${userName} (${userEmail})`}
+                  readOnly
+                  className="w-full bg-white/[0.03] text-zinc-400 font-mono text-xs px-3.5 py-2.5 rounded-xl border border-white/[0.08] cursor-not-allowed"
+                />
+              </div>
+
+              {/* Teammates List & Verification */}
+              {(() => {
+                const maxTeammates = Math.max(0, (freeTeamModalEvent.max_team_size ?? freeTeamModalEvent.team_size ?? 2) - 1);
+                const minTeammates = Math.max(0, (freeTeamModalEvent.min_team_size ?? 2) - 1);
+
+                return (
+                  <div className="flex flex-col gap-2.5 pt-1">
+                    <label className="font-mono text-[11px] uppercase tracking-wider text-zinc-300">
+                      Teammates ({modalVerifiedMembers.length}/{maxTeammates} added • Min {minTeammates} required)
+                    </label>
+
+                    {/* Verified Teammates Pills */}
+                    {modalVerifiedMembers.map((m, idx) => (
+                      <div
+                        key={m.email}
+                        className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs font-mono"
+                      >
+                        <div className="flex items-center gap-2 min-w-0 pr-2">
+                          <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] font-bold shrink-0">
+                            ✓
+                          </span>
+                          <span className="text-white font-medium truncate">{m.name || `Member ${idx + 1}`}</span>
+                          <span className="text-zinc-400 truncate text-[11px]">({m.email})</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveModalMember(m.email)}
+                          className="p-1 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors cursor-pointer shrink-0"
+                          title="Remove teammate"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+
+                    {/* Teammate Input Row */}
+                    {modalVerifiedMembers.length < maxTeammates ? (
+                      <div className="flex flex-col gap-1.5 pt-1">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="email"
+                            value={modalPendingEmail}
+                            onChange={(e) => {
+                              setModalPendingEmail(e.target.value);
+                              if (modalError) setModalError(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleVerifyModalMember();
+                              }
+                            }}
+                            disabled={modalVerifying}
+                            placeholder={`Enter teammate ${modalVerifiedMembers.length + 1} registered email`}
+                            className="flex-1 bg-black/60 text-white font-mono text-xs px-3.5 py-2.5 rounded-xl border border-white/[0.12] focus:border-emerald-500 focus:outline-none disabled:opacity-50"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleVerifyModalMember}
+                            disabled={modalVerifying || !modalPendingEmail.trim()}
+                            title="Add & verify teammate"
+                            aria-label="Add and verify teammate"
+                            className="w-10 h-10 rounded-xl font-mono text-sm font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 hover:bg-emerald-500 hover:text-black transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0 flex items-center justify-center"
+                          >
+                            {modalVerifying ? (
+                              <svg className="animate-spin w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                              </svg>
+                            ) : (
+                              <span className="font-bold text-base leading-none">+</span>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06] text-[11px] font-mono text-zinc-400 text-center">
+                        Maximum squad size reached for this competition.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Error Message */}
+              {modalError && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs font-mono text-red-400 flex items-start gap-2">
+                  <span className="shrink-0">⚠️</span>
+                  <span>{modalError}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/[0.08]">
+              <button
+                type="button"
+                onClick={closeFreeTeamModal}
+                className="py-2.5 px-4 rounded-xl text-xs font-mono font-medium uppercase tracking-wider text-zinc-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmFreeTeamEnrollment}
+                className="py-2.5 px-4 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-black bg-emerald-400 hover:bg-emerald-300 shadow-[0_0_20px_rgba(52,211,153,0.35)] transition-all cursor-pointer"
+              >
+                Confirm & Enroll
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Paid Team Squad Inspection Modal */}
+      {viewSquadTeamEvent && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="paid-squad-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setViewSquadTeamEvent(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl border border-white/[0.15] bg-[#07090E] p-5 sm:p-6 flex flex-col gap-4 shadow-[0_0_50px_rgba(255,106,0,0.12)] max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-white/[0.08] pb-3">
+              <div className="flex flex-col gap-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono text-[#FF8833] font-semibold px-2 py-0.5 rounded bg-[#FF6A00]/10 border border-[#FF6A00]/20 uppercase">
+                    TEAM COMPETITION
+                  </span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded uppercase font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    PAID ✓
+                  </span>
+                </div>
+                <h3 id="paid-squad-dialog-title" className="font-subheading font-medium text-base sm:text-lg text-white truncate">
+                  {viewSquadTeamEvent.event_title}
+                </h3>
+                <p className="text-xs font-mono text-zinc-400">
+                  Team: <span className="text-white font-medium">{viewSquadTeamEvent.team_name || 'Squad'}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewSquadTeamEvent(null)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer shrink-0"
+                aria-label="Close squad details"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Squad Content */}
+            <div className="flex flex-col gap-4 text-xs font-mono">
+              {/* Leader Details Card */}
+              <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.08] flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] uppercase tracking-wider text-[#FF8833] font-semibold">
+                    Squad Leader
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-[#FF6A00]/10 text-[#FF8833] border border-[#FF6A00]/20 uppercase">
+                    LEADER
+                  </span>
+                </div>
+                <span className="text-white font-medium text-sm">
+                  {viewSquadTeamEvent.team_leader_name || userName}
+                </span>
+                <span className="text-zinc-400 text-xs">
+                  {viewSquadTeamEvent.team_leader_email || userEmail}
+                </span>
+                {viewSquadTeamEvent.team_leader_phone && (
+                  <span className="text-zinc-500 text-[11px]">
+                    Phone: {viewSquadTeamEvent.team_leader_phone}
+                  </span>
+                )}
+              </div>
+
+              {/* Teammates List */}
+              <div className="flex flex-col gap-2">
+                <span className="text-[11px] text-zinc-400 uppercase tracking-wider">
+                  Teammates ({viewSquadTeamEvent.team_member_details?.length || viewSquadTeamEvent.team_members?.length || 0})
+                </span>
+
+                {(!viewSquadTeamEvent.team_member_details || viewSquadTeamEvent.team_member_details.length === 0) &&
+                (!viewSquadTeamEvent.team_members || viewSquadTeamEvent.team_members.length === 0) ? (
+                  <p className="text-xs text-zinc-500 italic p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] text-center">
+                    No additional teammates recorded for this squad.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {(viewSquadTeamEvent.team_member_details && viewSquadTeamEvent.team_member_details.length > 0
+                      ? viewSquadTeamEvent.team_member_details
+                      : (viewSquadTeamEvent.team_members || []).map((email) => ({
+                          name: 'Registered Attendee',
+                          email,
+                          phone: 'N/A',
+                        }))
+                    ).map((member, mIdx) => (
+                      <div
+                        key={mIdx}
+                        className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] flex flex-col gap-1 text-xs"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-white text-sm truncate">
+                            {member.name || `Member ${mIdx + 1}`}
+                          </span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                            MEMBER
+                          </span>
+                        </div>
+                        <div className="font-mono text-zinc-400 text-[11px] flex flex-col gap-0.5 pt-1">
+                          <span className="text-zinc-300 truncate">{member.email}</span>
+                          {member.phone && member.phone !== 'N/A' && (
+                            <span className="text-zinc-500">{member.phone}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="pt-2 border-t border-white/[0.08] flex justify-end">
+              <button
+                type="button"
+                onClick={() => setViewSquadTeamEvent(null)}
+                className="py-2 px-5 rounded-xl text-xs font-mono font-medium uppercase tracking-wider text-white bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 02 — Unified Paid Events Container (Side-by-Side Cards with Horizontal Scroll) */}
       <section className="w-full flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-base sm:text-lg font-subheading font-medium uppercase tracking-wider text-zinc-200 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_12px_rgba(52,211,153,0.8)]" />
             Paid Events
           </h2>
-          <span className="text-xs font-mono text-emerald-400 font-medium px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-            {individualPaid.length + teamPaid.length} PAID
-          </span>
+          <div className="flex items-center gap-3">
+            {(canScrollLeftPaid || canScrollRightPaid) && (
+              <div className="hidden sm:flex items-center gap-1 pr-2 border-r border-white/[0.08]">
+                <button
+                  type="button"
+                  onClick={() => scrollPaidEvents('left')}
+                  disabled={!canScrollLeftPaid}
+                  aria-label="Scroll left"
+                  className="w-7 h-7 rounded-lg border border-white/[0.1] bg-white/[0.03] hover:bg-white/[0.08] text-zinc-300 hover:text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollPaidEvents('right')}
+                  disabled={!canScrollRightPaid}
+                  aria-label="Scroll right"
+                  className="w-7 h-7 rounded-lg border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-[0_0_10px_rgba(16,185,129,0.15)]"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            )}
+            <span className="text-xs font-mono text-emerald-400 font-medium px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+              {individualPaid.length + teamPaid.length} PAID
+            </span>
+          </div>
         </div>
 
         {individualPaid.length === 0 && teamPaid.length === 0 ? (
@@ -807,195 +1603,375 @@ export default function EventEnrollmentView({
             No paid events yet. Browse and add events below.
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
-            {/* Paid Individual Events */}
-            {individualPaid.map((enrolled) => {
-              const details = enrolled.event_details;
-              return (
-                <div
-                  key={enrolled._id}
-                  className="rounded-2xl border border-white/[0.1] bg-[#07090E] p-4 sm:p-5 flex items-center justify-between gap-4"
-                >
-                  <div className="flex flex-col gap-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-mono text-emerald-400 font-semibold px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 uppercase">
-                        INDIVIDUAL
-                      </span>
-                      <span className="text-xs font-mono text-emerald-400 font-medium">PAID</span>
-                    </div>
-                    <h3 className="font-subheading font-medium text-base sm:text-lg text-white truncate">
-                      {enrolled.event_title}
-                    </h3>
-                    <p className="text-xs text-zinc-400 line-clamp-1">
-                      {details?.short_description || 'Individual Competition'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-sm font-sans font-semibold text-emerald-400">
-                      {details?.entry_fee ? `₹${details.entry_fee}` : 'FREE'}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Paid Team Events with Simple & Good-Looking Dropdown */}
-            {teamPaid.map((teamEvent) => {
-              const rowId = `team-enrolled-${teamEvent._id}`;
-              const isExpanded = Boolean(expandedRows[rowId]);
-              const details = teamEvent.event_details;
-
-              return (
-                <div
-                  key={teamEvent._id}
-                  className="rounded-2xl border border-white/[0.1] bg-[#07090E] hover:border-white/[0.2] transition-colors overflow-hidden"
-                >
-                  {/* Collapsed Bar: Clickable Header */}
+          <div className="relative group/paidscroll">
+            <div
+              ref={paidEventsScrollRef}
+              onScroll={checkPaidScroll}
+              className="flex flex-row items-stretch gap-3.5 overflow-x-auto scroll-smooth pb-3.5 pt-1 scrollbar-thin scrollbar-thumb-emerald-500/30 hover:scrollbar-thumb-emerald-500/60 scrollbar-track-white/[0.02]"
+            >
+              {/* Paid Individual Events */}
+              {individualPaid.map((enrolled) => {
+                const details = enrolled.event_details;
+                return (
                   <div
-                    onClick={() => toggleRow(rowId)}
-                    className="p-4 sm:p-5 flex items-center justify-between gap-4 cursor-pointer select-none"
+                    key={enrolled._id}
+                    className="w-[290px] sm:w-[320px] shrink-0 rounded-2xl border border-white/[0.1] bg-[#07090E] hover:border-emerald-500/40 hover:shadow-[0_0_20px_rgba(16,185,129,0.06)] transition-all p-4 flex flex-col justify-between gap-3.5 group"
                   >
-                    <div className="flex flex-col gap-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-mono text-[#FF8833] font-semibold px-2 py-0.5 rounded bg-[#FF6A00]/10 border border-[#FF6A00]/20 uppercase">
-                          TEAM
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded font-semibold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            INDIVIDUAL
+                          </span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded uppercase font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            PAID
+                          </span>
+                        </div>
+                        <span className="text-xs font-sans font-semibold text-emerald-400">
+                          {details?.entry_fee ? `₹${details.entry_fee}` : 'FREE'}
                         </span>
-                        <span className="text-xs font-mono text-emerald-400 font-medium">PAID</span>
                       </div>
-                      <h3 className="font-subheading font-medium text-base sm:text-lg text-white truncate">
-                        {teamEvent.event_title}
-                      </h3>
-                      <p className="text-xs text-zinc-400 line-clamp-1">
-                        Team: <span className="text-white font-medium">{teamEvent.team_name || 'Squad'}</span>
-                      </p>
+
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <h3 className="font-subheading font-medium text-sm sm:text-base text-white tracking-wide line-clamp-1 group-hover:text-emerald-300 transition-colors">
+                          {enrolled.event_title}
+                        </h3>
+                        <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">
+                          {details?.short_description || 'Individual Competition'}
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-                      <span className="text-sm font-sans font-semibold text-emerald-400">
-                        {details?.entry_fee ? `₹${details.entry_fee}` : 'FREE'}
+                    <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-white/[0.06] text-[11px] font-mono text-zinc-400">
+                      <span className="text-zinc-400 truncate text-[11px]">
+                        Solo Entry
+                      </span>
+                      <span className="text-xs font-mono text-emerald-400 font-medium flex items-center gap-1">
+                        <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        CONFIRMED
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Paid Team Events */}
+              {teamPaid.map((teamEvent) => {
+                const details = teamEvent.event_details;
+                const membersCount =
+                  (teamEvent.team_member_details?.length || teamEvent.team_members?.length || 0) + 1;
+
+                return (
+                  <div
+                    key={teamEvent._id}
+                    className="w-[290px] sm:w-[320px] shrink-0 rounded-2xl border border-white/[0.1] bg-[#07090E] hover:border-[#FF6A00]/40 hover:shadow-[0_0_20px_rgba(255,106,0,0.06)] transition-all p-4 flex flex-col justify-between gap-3.5 group"
+                  >
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded font-semibold uppercase tracking-wider bg-[#FF6A00]/10 text-[#FF8833] border border-[#FF6A00]/20">
+                            TEAM
+                          </span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded uppercase font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            PAID
+                          </span>
+                        </div>
+                        <span className="text-xs font-sans font-semibold text-emerald-400">
+                          {details?.entry_fee ? `₹${details.entry_fee}` : 'FREE'}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <h3 className="font-subheading font-medium text-sm sm:text-base text-white tracking-wide line-clamp-1 group-hover:text-[#FF8833] transition-colors">
+                          {teamEvent.event_title}
+                        </h3>
+                        <p className="text-xs font-mono text-zinc-300 truncate">
+                          Team: <span className="text-white font-medium">{teamEvent.team_name || 'Squad'}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-white/[0.06] text-[11px] font-mono text-zinc-400">
+                      <span className="text-zinc-400 truncate text-[11px]">
+                        {membersCount} {membersCount === 1 ? 'Member' : 'Members'}
                       </span>
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleRow(rowId);
-                        }}
-                        aria-expanded={isExpanded}
-                        aria-label={isExpanded ? 'Collapse team details' : 'Expand team details'}
-                        className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.05] transition-colors"
+                        onClick={() => setViewSquadTeamEvent(teamEvent)}
+                        className="px-2.5 py-1 rounded-lg font-mono text-xs font-semibold bg-white/[0.05] hover:bg-[#FF6A00]/20 text-zinc-200 hover:text-[#FF8833] border border-white/[0.1] hover:border-[#FF6A00]/40 transition-all cursor-pointer flex items-center gap-1"
                       >
-                        <svg
-                          className={`w-5 h-5 transition-transform duration-300 ${
-                            isExpanded ? 'rotate-180 text-[#FF6A00]' : 'text-zinc-400'
-                          }`}
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        <span>Squad</span>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                         </svg>
                       </button>
                     </div>
                   </div>
+                );
+              })}
+            </div>
 
-                  {/* Expanded Dropdown Panel: Team Name, Leader & Teammates (Name, Email, Phone) */}
-                  <div
-                    className={`grid transition-[grid-template-rows] duration-250 ease-out motion-reduce:transition-none ${
-                      isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
-                    }`}
-                  >
-                    <div className="overflow-hidden">
-                      <div className="p-4 sm:p-5 pt-3 border-t border-white/[0.06] flex flex-col gap-4 bg-white/[0.01]">
-                        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-mono border-b border-white/[0.06] pb-3">
-                          <div>
-                            <span className="text-zinc-500 uppercase tracking-wider text-[11px]">Team Name: </span>
-                            <span className="text-white font-medium">{teamEvent.team_name || 'N/A'}</span>
-                          </div>
-                          <div>
-                            <span className="text-zinc-500 uppercase tracking-wider text-[11px]">Leader: </span>
-                            <span className="text-white font-medium">{teamEvent.team_leader_name || userName}</span>
-                          </div>
-                          <div>
-                            <span className="text-zinc-500 uppercase tracking-wider text-[11px]">Leader Email: </span>
-                            <span className="text-zinc-300">{teamEvent.team_leader_email || userEmail}</span>
-                          </div>
-                          {teamEvent.team_leader_phone && (
-                            <div>
-                              <span className="text-zinc-500 uppercase tracking-wider text-[11px]">Leader Phone: </span>
-                              <span className="text-zinc-300">{teamEvent.team_leader_phone}</span>
-                            </div>
-                          )}
-                        </div>
+            {/* Right Side Scroll Button at the right of the div */}
+            {canScrollRightPaid && (
+              <div className="absolute right-0 top-0 bottom-3.5 w-14 bg-gradient-to-l from-[#07090E] via-[#07090E]/80 to-transparent pointer-events-none flex items-center justify-end pr-1">
+                <button
+                  type="button"
+                  onClick={() => scrollPaidEvents('right')}
+                  aria-label="Side scroll right"
+                  className="pointer-events-auto p-2 rounded-full bg-[#0B0F17]/95 border border-emerald-500/50 text-emerald-400 hover:text-white hover:bg-emerald-500/30 shadow-[0_0_18px_rgba(16,185,129,0.35)] transition-all cursor-pointer hover:scale-105 active:scale-95"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            )}
 
-                        {/* Team Members List */}
-                        <div className="flex flex-col gap-2">
-                          <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
-                            Team Members ({teamEvent.team_member_details?.length || teamEvent.team_members?.length || 0})
-                          </span>
-
-                          {(!teamEvent.team_member_details || teamEvent.team_member_details.length === 0) &&
-                          (!teamEvent.team_members || teamEvent.team_members.length === 0) ? (
-                            <p className="text-xs text-zinc-500 font-mono italic">No additional teammates added.</p>
-                          ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                              {(teamEvent.team_member_details && teamEvent.team_member_details.length > 0
-                                ? teamEvent.team_member_details
-                                : (teamEvent.team_members || []).map((email) => ({
-                                    name: 'Registered Attendee',
-                                    email,
-                                    phone: 'N/A',
-                                  }))
-                              ).map((member, mIdx) => (
-                                <div
-                                  key={mIdx}
-                                  className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] flex flex-col gap-1 text-xs"
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-medium text-white text-sm">
-                                      {member.name || `Member ${mIdx + 1}`}
-                                    </span>
-                                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                      MEMBER
-                                    </span>
-                                  </div>
-                                  <div className="font-mono text-zinc-400 text-[11px] flex flex-col gap-0.5 pt-1">
-                                    <span className="text-zinc-300">{member.email}</span>
-                                    {member.phone && member.phone !== 'N/A' && (
-                                      <span className="text-zinc-500">{member.phone}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {/* Left Side Scroll Button when scrolled */}
+            {canScrollLeftPaid && (
+              <div className="absolute left-0 top-0 bottom-3.5 w-14 bg-gradient-to-r from-[#07090E] via-[#07090E]/80 to-transparent pointer-events-none flex items-center justify-start pl-1">
+                <button
+                  type="button"
+                  onClick={() => scrollPaidEvents('left')}
+                  aria-label="Side scroll left"
+                  className="pointer-events-auto p-2 rounded-full bg-[#0B0F17]/95 border border-white/[0.15] text-zinc-300 hover:text-white hover:bg-white/[0.1] shadow-lg transition-all cursor-pointer hover:scale-105 active:scale-95"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </section>
 
-      {/* 03 — Highlighted Banner: All 8 Free Events Included */}
-      <div className="w-full rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-950/40 via-emerald-900/20 to-black/40 p-4 sm:p-5 flex items-center gap-4 shadow-[0_0_30px_rgba(16,185,129,0.12)]">
-        <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
+      {/* 03 — Free Events Enrollment Section (with Dropdown Effect) */}
+      <section className="flex flex-col gap-4">
+        <div className="rounded-2xl border border-emerald-500/30 bg-[#07090E] hover:border-emerald-500/40 transition-colors overflow-hidden shadow-[0_0_25px_rgba(16,185,129,0.06)]">
+          {/* Collapsed Bar: Clickable Header */}
+          <div
+            onClick={() => setIsFreeEventsOpen(!isFreeEventsOpen)}
+            className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 cursor-pointer select-none"
+          >
+            <div className="flex flex-col gap-1.5 min-w-0">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h3 className="font-subheading font-medium text-base sm:text-lg text-white flex items-center gap-2 tracking-wide uppercase">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_12px_rgba(52,211,153,0.8)]" />
+                  FREE EVENTS
+                </h3>
+                <span className="text-xs font-mono text-emerald-400 font-medium px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 uppercase tracking-wider whitespace-nowrap">
+                  ENTRY PASS REQUIRED
+                </span>
+              </div>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Your Entry Pass covers these events. Choose the ones you want to participate in and complete your enrollment.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2.5 sm:pt-0 border-t sm:border-t-0 border-white/[0.06]">
+              {isFreeEventsOpen && (
+                <div className="hidden sm:flex items-center gap-1 pr-2 border-r border-white/[0.08]">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      scrollFreeEvents('left');
+                    }}
+                    disabled={!canScrollLeftFree}
+                    aria-label="Scroll left"
+                    className="w-7 h-7 rounded-lg border border-white/[0.1] bg-white/[0.03] hover:bg-white/[0.08] text-zinc-300 hover:text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      scrollFreeEvents('right');
+                    }}
+                    disabled={!canScrollRightFree}
+                    aria-label="Scroll right"
+                    className="w-7 h-7 rounded-lg border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-[0_0_10px_rgba(16,185,129,0.15)]"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              <span className="text-[11px] sm:text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20 whitespace-nowrap">
+                {freeEvents.length} AVAILABLE
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsFreeEventsOpen(!isFreeEventsOpen);
+                }}
+                aria-expanded={isFreeEventsOpen}
+                aria-label={isFreeEventsOpen ? 'Collapse free events' : 'Expand free events'}
+                className="p-1.5 sm:p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.05] transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <span className="text-xs font-mono text-zinc-400 sm:hidden">
+                  {isFreeEventsOpen ? 'Hide' : 'View'}
+                </span>
+                <svg
+                  className={`w-5 h-5 transition-transform duration-300 ${
+                    isFreeEventsOpen ? 'rotate-180 text-emerald-400' : 'text-zinc-400'
+                  }`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Expanded Dropdown Panel */}
+          <div
+            className={`grid transition-[grid-template-rows] duration-250 ease-out motion-reduce:transition-none ${
+              isFreeEventsOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+            }`}
+          >
+            <div className="overflow-hidden">
+              <div className="p-4 sm:p-5 pt-3 border-t border-white/[0.06] flex flex-col gap-4 bg-white/[0.01]">
+                {/* Free Events List: Arranged in a single horizontal line with side scroll */}
+                <div className="relative group/scroll">
+                  <div
+                    ref={freeEventsScrollRef}
+                    onScroll={checkFreeScroll}
+                    className="flex flex-row items-stretch gap-3.5 overflow-x-auto scroll-smooth pb-3.5 pt-1 scrollbar-thin scrollbar-thumb-emerald-500/30 hover:scrollbar-thumb-emerald-500/60 scrollbar-track-white/[0.02]"
+                  >
+                    {freeEvents.map((ev) => {
+                      const isTeam = ev.participants_type === 'team';
+                      const isAlreadyEnrolled = isTeam
+                        ? teamPaid.some((e) => e.event_id === ev._id)
+                        : individualPaid.some((e) => e.event_id === ev._id);
+
+                      return (
+                        <div
+                          key={ev._id}
+                          className={`w-[290px] sm:w-[320px] shrink-0 rounded-2xl border transition-all p-4 flex flex-col justify-between gap-3.5 group ${
+                            isAlreadyEnrolled
+                              ? 'border-emerald-500/40 bg-emerald-950/[0.14] shadow-[0_0_20px_rgba(16,185,129,0.08)]'
+                              : 'border-emerald-500/20 bg-[#07090E] hover:border-emerald-500/45 hover:shadow-[0_0_20px_rgba(16,185,129,0.06)]'
+                          }`}
+                        >
+                          <div className="flex flex-col gap-2.5">
+                            {/* Badges */}
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded font-semibold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+                                FREE EVENT
+                              </span>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded uppercase tracking-wider bg-white/[0.05] text-zinc-300 border border-white/[0.08]">
+                                {isTeam ? 'TEAM' : 'INDIVIDUAL'}
+                              </span>
+                            </div>
+
+                            {/* Title & Description */}
+                            <div className="flex flex-col gap-1 min-w-0">
+                              <h4 className="font-subheading font-medium text-sm sm:text-base text-white tracking-wide line-clamp-1 group-hover:text-emerald-300 transition-colors">
+                                {ev.title}
+                              </h4>
+                              {ev.short_description && (
+                                <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">
+                                  {ev.short_description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Bottom Row */}
+                          <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-white/[0.06] text-[11px] font-mono text-zinc-400">
+                            <span className="text-zinc-300 truncate text-[11px]">
+                              {isTeam
+                                ? `Squad: ${ev.team_size || ev.min_team_size || 2} Members`
+                                : 'Solo Participation'}
+                            </span>
+
+                            {isAlreadyEnrolled ? (
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="px-2.5 py-1 rounded-lg font-mono text-xs uppercase tracking-wider font-semibold border border-emerald-500/40 bg-emerald-500/15 text-emerald-400 flex items-center gap-1">
+                                  <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  ENROLLED ✓
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUnenrollFreeEvent(ev)}
+                                  aria-label={`Unenroll from ${ev.title}`}
+                                  title="Unenroll from free event"
+                                  className="p-1 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleFreeEnrollment(ev)}
+                                className="px-3.5 py-1.5 rounded-lg font-mono text-xs uppercase tracking-wider font-semibold border border-emerald-500/60 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 hover:text-white shadow-[0_0_15px_rgba(16,185,129,0.2)] hover:shadow-[0_0_22px_rgba(16,185,129,0.4)] transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                              >
+                                <span>ENROLL NOW</span>
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Right Side Scroll Button at the right of the div */}
+                  {canScrollRightFree && (
+                    <div className="absolute right-0 top-0 bottom-3.5 w-14 bg-gradient-to-l from-[#07090E] via-[#07090E]/80 to-transparent pointer-events-none flex items-center justify-end pr-1">
+                      <button
+                        type="button"
+                        onClick={() => scrollFreeEvents('right')}
+                        aria-label="Side scroll right"
+                        className="pointer-events-auto p-2 rounded-full bg-[#0B0F17]/95 border border-emerald-500/50 text-emerald-400 hover:text-white hover:bg-emerald-500/30 shadow-[0_0_18px_rgba(16,185,129,0.35)] transition-all cursor-pointer hover:scale-105 active:scale-95"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Left Side Scroll Button when scrolled */}
+                  {canScrollLeftFree && (
+                    <div className="absolute left-0 top-0 bottom-3.5 w-14 bg-gradient-to-r from-[#07090E] via-[#07090E]/80 to-transparent pointer-events-none flex items-center justify-start pl-1">
+                      <button
+                        type="button"
+                        onClick={() => scrollFreeEvents('left')}
+                        aria-label="Side scroll left"
+                        className="pointer-events-auto p-2 rounded-full bg-[#0B0F17]/95 border border-white/[0.15] text-zinc-300 hover:text-white hover:bg-white/[0.1] shadow-lg transition-all cursor-pointer hover:scale-105 active:scale-95"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-emerald-400">
-            Included with Entry Pass
-          </span>
-          <p className="text-sm sm:text-base font-subheading font-medium text-white tracking-wide">
-            All 8 free events are already included with the pass
-          </p>
-        </div>
-      </div>
+      </section>
 
       {/* 04 — Add Events Section (Side-by-Side Dual-Box Layout) */}
       <section className="flex flex-col gap-6 pt-2">
@@ -1237,6 +2213,11 @@ export default function EventEnrollmentView({
                             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/[0.06] text-zinc-400 uppercase">
                               INDIVIDUAL
                             </span>
+                            {(!ev.entry_fee || ev.entry_fee === 0) && (
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase font-semibold">
+                                FREE
+                              </span>
+                            )}
                           </div>
                           {ev.date_time && (
                             <span className="text-[11px] font-mono text-zinc-400 pt-0.5">
@@ -1347,6 +2328,11 @@ export default function EventEnrollmentView({
                               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#FF6A00]/20 text-[#FF8833] uppercase">
                                 TEAM
                               </span>
+                              {(!ev.entry_fee || ev.entry_fee === 0) && (
+                                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase font-semibold">
+                                  FREE
+                                </span>
+                              )}
                             </div>
                             <span className="text-[11px] font-mono text-zinc-400 pt-0.5">
                               Team Size: Min {minSize} – Max {maxSize} members

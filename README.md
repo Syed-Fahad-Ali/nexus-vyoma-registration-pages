@@ -43,6 +43,123 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Newest first.
 
+### 2026-10-27 — Paid Events Horizontal Side-by-Side Cards & Scroll Controls
+
+**Done**
+- **Side-by-Side Card Layout**: Transformed Section 02 (**PAID EVENTS**) in [`components/registration/EventEnrollmentView.tsx`](file:///Users/syedfahad/Developer/College/Nexus%20Vyoma/registration-pages/components/registration/EventEnrollmentView.tsx) from vertically stacked rows into side-by-side cards (`w-[290px] sm:w-[320px]`).
+- **Right Side Scroll Controls**: Added smooth horizontal scrolling with header arrow buttons (`←` and `→`) and a floating right-edge scroll button overlay (`→`) with gradient fade.
+- **Dedicated Squad Inspection Modal**: Provided a clean "Squad" action on paid team cards that opens a dedicated dialog to inspect team leader details and all registered teammates without breaking horizontal card alignment.
+
+### 2026-10-26 — Free Events Excluded from Selected Events Cart
+
+**Done**
+- **In-Box Only Enrollment**: Free events are now enrolled and selected exclusively within their dedicated Free Events cards / box in Section 03 of [`components/registration/EventEnrollmentView.tsx`](file:///Users/syedfahad/Developer/College/Nexus%20Vyoma/registration-pages/components/registration/EventEnrollmentView.tsx).
+- **Clean Checkout Cart**: Free events are no longer inserted into the "Selected Events" cart / drawer or added to the cart counter, keeping the checkout cart strictly dedicated to paid competitions awaiting payment.
+
+### 2026-10-26 — Free Events Card Cleanup & Modal Teammate Button Polish
+
+**Done**
+- **Removed Date/Time & Location**: Stripped out the date/time and venue metadata from the free competition cards in [`components/registration/EventEnrollmentView.tsx`](file:///Users/syedfahad/Developer/College/Nexus%20Vyoma/registration-pages/components/registration/EventEnrollmentView.tsx), producing a cleaner, more focused card layout.
+- **Teammate Verification Button Polish**: In the free team squad modal, updated the add teammate email action to display only the compact `+` icon button (and spinner during async validation), removing the word "Verify".
+
+### 2026-10-26 — Removed Free Events Sorting / Filter Controls
+
+**Done**
+- **Removed Filter / Sorting Bar**: Removed the `[ ALL (9) ] [ INDIVIDUAL (6) ] [ TEAM (3) ]` filter pills and prompt row from the Free Events section in [`components/registration/EventEnrollmentView.tsx`](file:///Users/syedfahad/Developer/College/Nexus%20Vyoma/registration-pages/components/registration/EventEnrollmentView.tsx) as requested.
+- **Direct Catalog Display**: Free events now render directly in a single horizontal scrollable row with directional side scroll navigation controls and no filtering overhead.
+
+### 2026-10-26 — Dedicated Free Events UI & Squad Modal (Zero Backend Route Changes)
+
+**Done**
+- **Strict Architecture Compliance**: Handled the entire Free Events experience purely on the frontend in [`components/registration/EventEnrollmentView.tsx`](file:///Users/syedfahad/Developer/College/Nexus%20Vyoma/registration-pages/components/registration/EventEnrollmentView.tsx), without creating or modifying any backend `route.ts` files.
+- **Dedicated Free Events Section Header & Design**:
+  - Implemented pulsing neon emerald indicator dot with bold uppercase **FREE EVENTS** title.
+  - Added official **ENTRY PASS REQUIRED** badge (`bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs px-2.5 py-0.5 rounded-full`).
+  - Added subtitle: *"Your Entry Pass covers these events. Choose the ones you want to participate in and complete your enrollment."*
+- **Card Surfaces & Button States**:
+  - Rendered all 9 real database free events with dark background (`#07090E`), emerald accents, `[FREE EVENT]` and `[INDIVIDUAL]` / `[TEAM]` badges, date/time, and venue details.
+  - Interactive states: Available cards feature glowing emerald **ENROLL NOW** button; enrolled cards switch to checkmarked **ENROLLED ✓** badge with unenroll option.
+- **Dedicated Squad Configuration Modal for Free Team Events**:
+  - Clicking `ENROLL NOW` on a free team event opens a dedicated squad modal to input Team Name and verify teammate emails via the existing `/api/enrollement/check-team-email` endpoint.
+  - Validates min/max squad sizes, displays verified member badges with remove controls, and commits directly to enrolled state upon confirmation.
+- **Direct 1-Click Enrollment for Individual Free Events**:
+  - Clicking `ENROLL NOW` instantly enrolls the attendee, reflects in `individualPaid`, persists to `localStorage`, and updates the card button to `ENROLLED ✓`.
+- **Verification**: Passed `npx tsc --noEmit` with 0 errors.
+
+### 2026-10-26 — Free Events Horizontal Carousel Layout & Side Scroll Controls
+
+**Done**
+- **Single Horizontal Line for Free Events (`components/registration/EventEnrollmentView.tsx`)**:
+  - Replaced the stacked multi-row 3x3 grid (`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3`) with a single continuous horizontal carousel line (`flex flex-row items-stretch gap-3.5 overflow-x-auto scroll-smooth`).
+  - Styled cards with consistent width (`w-[290px] sm:w-[320px] shrink-0`) maintaining title, description, badge, squad details, and enrollment triggers.
+- **Side Scroll Controls & Overflow Indicators (`components/registration/EventEnrollmentView.tsx`)**:
+  - Added dedicated right-side scroll button overlay (`absolute right-0 ...`) with a dark gradient fade that smoothly slides cards to the right (`+330px`).
+  - Added left-side scroll button overlay (`absolute left-0 ...`) appearing conditionally when scrolled.
+  - Added header side-scroll arrow buttons (`←` and `→`) beside the category filter pills with disabled states when reaching edges.
+  - Added refined custom emerald-tinted horizontal scrollbar.
+- **Verification**: Passed `npx tsc --noEmit` clean compilation with exit code 0.
+
+### 2026-10-26 — Mobile Viewport Polish for Free Events & Cart Persistence
+
+**Done**
+- **Mobile Viewport Fix for Free Events Header Card (`components/registration/EventEnrollmentView.tsx`)**:
+  - Resolved mobile text squishing, awkward word wrapping (`INCLUDED \n WITH \n ENTRY \n PASS`), title truncation (`Browse & Enr...`), and description cut-offs on compact screens (≤ 400px).
+  - Adopted responsive stacked flex layout (`flex-col sm:flex-row`), `whitespace-nowrap shrink-0` on badges, natural text wrapping (`leading-snug text-sm sm:text-lg`), and dedicated bottom action bar for the available count badge and mobile toggle button with view/hide text.
+  - Made free events category filter buttons responsive on mobile with `flex-wrap gap-1.5`.
+- **Selected Events Section Integration for Free Enrolled Events (`components/registration/EventEnrollmentView.tsx`)**:
+  - Enrolled free individual and team events now clearly render in the **Selected Events** section with emerald `[FREE]` and `[ENROLLED ✓]` badges, ₹0 price tags, and unenroll triggers.
+  - Hardened storage persistence across page reloads and API syncs using `localStorage` under `nv_free_enrolled_${userEmail}`.
+- **Verification**: Passed `npx tsc --noEmit` clean compilation with exit code 0.
+
+### 2026-10-26 — Free Events Dropdown Accordion, Selected Box Integration & Squad Verification
+
+**Done**
+- **Smooth Dropdown Accordion for Free Events Section (`components/registration/EventEnrollmentView.tsx`)**:
+  - Implemented an animated dropdown accordion with CSS grid height transitions (`grid-rows-[1fr]` / `grid-rows-[0fr]`) and a rotating chevron arrow matching the existing team events collapsible pattern.
+  - Features an emerald dark-glass header banner displaying `FREE EVENTS`, `INCLUDED WITH ENTRY PASS`, and `{freeEvents.length} AVAILABLE` badge.
+- **Integrated Free Events into Selected Events Box (`components/registration/EventEnrollmentView.tsx`)**:
+  - Selecting free individual or free team events now stages them directly inside the right-hand **Selected Events** box with emerald `[FREE]` badges and ₹0 pricing.
+  - Already-enrolled free events also render cleanly inside the Selected Events box with unenroll actions and `ENROLLED ✓` status badges.
+  - Included free events in `totalSelectedCount` for full cart visibility.
+- **Identical Team Member Verification Algorithm for Free Team Events (`components/registration/EventEnrollmentView.tsx`)**:
+  - Reused the exact team creation workflow: Team Name input, read-only Team Leader, and progressive teammate email verification against `/api/enrollement/check-team-email`.
+  - Enforced squad size constraints (Min/Max members) and checkmarked teammate badges with remove controls.
+- **₹0 Free Enrollment Confirmation Flow (`components/registration/EventEnrollmentView.tsx`)**:
+  - Dynamically switched checkout CTA between **"Confirm Free Enrolment"** (for ₹0 carts) and **"Proceed to Checkout"** (for paid events).
+  - Enrolls free events directly in state without triggering payment gateways or backend payment reservation 404s.
+
+**Files changed**
+- `components/registration/EventEnrollmentView.tsx`
+- `README.md`
+
+### 2026-10-26 — Add Dedicated Interactive Free Events Enrollment Section on `/enroll-event`
+
+**Done**
+- **Replaced Static Free Events Banner with Interactive Enrollment Section (`components/registration/EventEnrollmentView.tsx`)**:
+  - Replaced the static "Included with Entry Pass — All 8 free events are already included" banner with an interactive **Free Events** selection section matching the design system of the other event selection blocks.
+  - Added segmented category filtering: `[ All ]`, `[ Individual ]`, and `[ Team ]` with dynamic count badges.
+  - Implemented responsive grid cards matching the existing event card style (`rounded-xl border border-white/[0.08] bg-white/[0.02] p-4`), displaying event title, short description, squad/individual requirement, and `FREE` badge.
+  - Implemented client-side enrollment toggle (`+ Enroll in Event` / `ENROLLED ✓`) that immediately updates registration state without charging or adding to the paid checkout cart.
+- **Pure UI Implementation**:
+  - Adhered strictly to UI-only requirement without modifying any backend routes, database models, or Next.js server configs.
+
+**Files changed**
+- `components/registration/EventEnrollmentView.tsx`
+- `README.md`
+
+### 2026-10-26 — Add Log Out Button & Confirmation Popup to `/enroll-event` Greeting
+
+**Done**
+- **Log Out Button & Confirmation Modal (`components/registration/EventEnrollmentView.tsx`)**:
+  - Aligned the top personalized greeting header into a responsive flex row (`flex items-center justify-between gap-4 pt-2`).
+  - Added a clean text **Log out** button with a small exit door SVG icon beside it (`inline-flex items-center gap-1.5`), positioned at the right corner of the `"Hi, {userName} :)"` line with zero borders or background containers.
+  - Implemented a branded confirmation popup dialog (`showLogoutConfirm`) that asks attendees to confirm or cancel before logging out.
+  - On confirmation: clears session cookies and redirects to `/register/check-email`.
+
+**Files changed**
+- `components/registration/EventEnrollmentView.tsx`
+- `README.md`
+
 ### 2026-10-24 — Fix Next.js 16 Partial Prerendering Build Failure on `/payment/success`
 
 **Done**
