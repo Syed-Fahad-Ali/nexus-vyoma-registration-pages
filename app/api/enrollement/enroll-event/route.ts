@@ -9,660 +9,981 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
 export interface TokenData {
-    user: {
-        id: string;
-        name: string;
-        email: string;
-    };
+  user: {
+    id: string;
+    name: string;
+    email: string;
+  };
 }
 
 // When /enroll-event page is loaded, after verification of the user token, we will fetch the user data and enrolled events data and also fetch the events excluding the ones the user is already enrolled in. We will also extend the reservation time for the events that are not paid yet and are not extended yet. The reservation time will be extended by 5 minutes from the current time.
 export async function GET(request: NextRequest) {
-    try {
-        const cookieStore = await cookies();
-        const userToken = cookieStore.get("nv-session")?.value;
-        const tempToken = cookieStore.get("nv-session-temp")?.value;
+  try {
+    const cookieStore = await cookies();
+    const userToken = cookieStore.get("nv-session")?.value;
+    const tempToken = cookieStore.get("nv-session-temp")?.value;
 
-        if (!userToken || !tempToken) {
-            return NextResponse.json(
-                {
-                    message: "Required tokens are missing",
-                    data: null,
-                    error: "Missing session token",
-                    redirect: true,
-                    redirectUrl: "/register/check-email",
-                },
-                { status: 401 }
-            );
-        }
-
-        const userData = verifyJWT(userToken) as TokenData | null;
-        const tempData = verifyJWT(tempToken) as TokenData | null;
-
-        if (userData === null || tempData === null) {
-            return NextResponse.json(
-                {
-                    message: "Invalid or expired tokens",
-                    data: null,
-                    error: "Invalid session token",
-                    redirect: true,
-                    redirectUrl: "/register/check-email",
-                },
-                { status: 401 }
-            );
-        }
-
-        await connectToDatabase();
-
-        // Fetch User Details
-        const user = await RegisterUser.findById(userData.user.id);
-
-        if (!user) {
-            return NextResponse.json(
-                {
-                    message: "User not found",
-                    data: null,
-                    error: "User does not exist",
-                    redirect: true,
-                    redirectUrl: "/register/check-email",
-                },
-                { status: 404 });
-        }
-
-        const entryTicket = await EntryTicket.findOne({ userId: user._id, isPaid: true })
-
-        if (!entryTicket) {
-            return NextResponse.json(
-                {
-                    message: "Entry ticket not found for the user",
-                    data: null,
-                    error: "Entry ticket does not exist",
-                    redirect: true,
-                    redirectUrl: "/register/entry-ticket",
-                },
-                { status: 404 });
-        }
-
-        // Fetch All events. (Only events with entry fee greater than 0)
-        const events = await Event.find({ entry_fee: { $gt: 0 } });
-
-        const allIndividualEvents = events.filter(event => event.participants_type === "individual");
-        const allTeamEvents = events.filter(event => event.participants_type === "team");
-
-        // Fetch All Enrolled Events (conditions are isPaid: false and reservation_time > currentTime)
-        const currentTime = new Date();
-
-        const enrolledIndividualEvents = await EnrolledIndividualEvent.find({
-            $or: [
-                { isPaid: true },
-                {
-                    isPaid: false,
-                    reservation_time: { $gt: currentTime }
-                }
-            ]
-        });
-
-        const enrolledTeamEvents = await EnrolledTeamEvent.find({
-            $or: [
-                { isPaid: true },
-                {
-                    isPaid: false,
-                    reservation_time: { $gt: currentTime }
-                }
-            ]
-        })
-
-        // Now we will filter the events to get the available individual events based on the participant limit and the number of enrolled events for that event.
-        let availableIndividualEvents: any[] = [];
-        for (let i = 0; i < allIndividualEvents.length; i++) {
-            const event = allIndividualEvents[i];
-
-            // Here we get all the enrollment docs for the current iterated event.
-            const temp = enrolledIndividualEvents.filter(enrolledEvent => enrolledEvent.event_id.toString() === event._id.toString())
-
-            // Here we are checking the iterate event's participant limit with the number of enrolled events for that event. If the participant limit is greater than or equal to the number of enrolled events, we will add that event to the availableIndividualEvents array.
-            if (temp.length < event.participant_limit) {
-                const alreadyEnrolled = temp.some(
-                    enrolledEvent =>
-                        enrolledEvent.register_user_id.toString() ===
-                        user._id.toString()
-                );
-
-                if (!alreadyEnrolled) {
-                    availableIndividualEvents.push(event);
-                }
-            }
-        }
-
-        // Now we will filter the events to get the available team events based on the participant limit and the number of enrolled events for that event.
-        let availableTeamEvents: any[] = [];
-
-        for (let i = 0; i < allTeamEvents.length; i++) {
-            const event = allTeamEvents[i];
-
-            // Get all enrollments for this event
-            const temp = enrolledTeamEvents.filter(
-                enrolledEvent =>
-                    enrolledEvent.event_id.toString() === event._id.toString()
-            );
-
-            // Check whether capacity remains
-            if (event.participant_limit > temp.length) {
-
-                // Check whether the user is already a leader or team member
-                const alreadyEnrolled = temp.some(enrolledEvent =>
-                    enrolledEvent.team_leader_register_user_id.toString() === user._id.toString() ||
-                    enrolledEvent.team_emails.includes(user.email)
-                );
-
-                // Add the event only if the user is not already enrolled
-                if (!alreadyEnrolled) {
-                    availableTeamEvents.push(event);
-                }
-            }
-        }
-
-        const availableEvents = {
-            individualEvents: availableIndividualEvents || [],
-            teamEvents: availableTeamEvents || []
-        }
-
-        // Here we have to show the user's enrolled events and also updates the reservation time for all the enrolled events that are not paid yet. And the reservation time will be extended by 5 minutes from the current time.
-        const extendedReservationTime = new Date(Date.now() + 5 * 60 * 1000);
-
-        await EnrolledIndividualEvent.updateMany(
-            {
-                register_user_id: user._id,
-                isPaid: false,
-                reservation_time: { $gt: currentTime },
-                isExtended: false
-            },
-            {
-                $set: {
-                    reservation_time: extendedReservationTime,
-                    isExtended: true
-                }
-            }
-        )
-
-        const enrolledUserIndividualEvents = await EnrolledIndividualEvent.find({
-            $and: [
-                {
-                    register_user_id: user._id
-                },
-                {
-                    isPaid: false,
-                    reservation_time: { $gt: currentTime }
-                }
-            ]
-        }).select("-transaction_id -__v")
-
-
-        await EnrolledTeamEvent.updateMany(
-            {
-                $or: [
-                    { team_leader_register_user_id: user._id },
-                    { team_emails: user.email }
-                ],
-                isPaid: false,
-                reservation_time: { $gt: currentTime },
-                isExtended: false
-            },
-            {
-                $set: {
-                    reservation_time: extendedReservationTime,
-                    isExtended: true
-                }
-            }
-        )
-
-        const enrolledUserTeamEvents = await EnrolledTeamEvent.find({
-            $and: [
-                {
-                    $or: [
-                        { team_leader_register_user_id: user._id },
-                        { team_emails: user.email }
-                    ]
-                },
-                {
-                    isPaid: false,
-                    reservation_time: { $gt: currentTime }
-                }
-            ]
-        })
-
-        const enrollUserEvents = {
-            individualEvents: enrolledUserIndividualEvents || [],
-            teamEvents: enrolledUserTeamEvents || []
-        }
-
-        return NextResponse.json({
-            message: "User and enrolled events fetched successfully",
-            data: {
-                user: {
-                    id: user._id,
-                    name: user.full_name,
-                    email: user.email,
-                },
-                availableEvents,
-                enrollUserEvents
-            },
-            error: null,
-            redirect: false,
-            redirectUrl: null
-        }, { status: 200 })
-    } catch (error) {
-        return NextResponse.json({
-            message: "Error fetching token",
-            data: null,
-            error: error,
-            redirect: false,
-            redirectUrl: null
-        }, { status: 500 })
+    if (!userToken || !tempToken) {
+      return NextResponse.json(
+        {
+          message: "Required tokens are missing",
+          data: null,
+          error: "Missing session token",
+          redirect: true,
+          redirectUrl: "/register/check-email",
+        },
+        { status: 401 },
+      );
     }
+
+    const userData = verifyJWT(userToken) as TokenData | null;
+    const tempData = verifyJWT(tempToken) as TokenData | null;
+
+    if (userData === null || tempData === null) {
+      return NextResponse.json(
+        {
+          message: "Invalid or expired tokens",
+          data: null,
+          error: "Invalid session token",
+          redirect: true,
+          redirectUrl: "/register/check-email",
+        },
+        { status: 401 },
+      );
+    }
+
+    await connectToDatabase();
+
+    // Fetch User Details
+    const user = await RegisterUser.findById(userData.user.id);
+
+    if (!user) {
+      return NextResponse.json(
+        {
+          message: "User not found",
+          data: null,
+          error: "User does not exist",
+          redirect: true,
+          redirectUrl: "/register/check-email",
+        },
+        { status: 404 },
+      );
+    }
+
+    const entryTicket = await EntryTicket.findOne({
+      userId: user._id,
+      isPaid: true,
+    });
+
+    if (!entryTicket) {
+      return NextResponse.json(
+        {
+          message: "Entry ticket not found for the user",
+          data: null,
+          error: "Entry ticket does not exist",
+          redirect: true,
+          redirectUrl: "/register/entry-ticket",
+        },
+        { status: 404 },
+      );
+    }
+
+    // Fetch All events. (Only events with entry fee greater than 0)
+    let events = await Event.find();
+
+    // ==========> Here entirely I have to write the logic of free events.
+
+    // 1. Get the free events from the events array and store them in a separate array.
+    const freeEvents = events.filter((event) => event.entry_fee === 0);
+
+    // 2. Now we will filter the free events based on the participant type and store them in separate arrays.
+    const allFreeIndividualEvents = freeEvents.filter(
+      (event) => event.participants_type === "individual",
+    );
+    const allFreeTeamEvents = freeEvents.filter(
+      (event) => event.participants_type === "team",
+    );
+
+    // Now here we will show the free events to the user based on:
+    // participant limit and the number of enrolled events for that event.
+    // And also we will check whether the user is already enrolled in that event or not.
+    // If the user is already enrolled in that event, then we will not show that event to the user.
+
+    // Individual Free Events:
+    let availableFreeIndividualEvents: any[] = [];
+
+    for (let i = 0; i < allFreeIndividualEvents.length; i++) {
+      const event = allFreeIndividualEvents[i];
+
+      const enrolledEvents = await EnrolledIndividualEvent.find({
+        event_id: event._id,
+      });
+
+      if (enrolledEvents.length <= event.participant_limit) {
+        const isUserEnrolled = enrolledEvents.find(
+          (enrolledEvent) => enrolledEvent.register_user_id === user._id,
+        );
+
+        if (!isUserEnrolled) {
+          availableFreeIndividualEvents.push(event);
+        }
+      }
+    }
+
+    // Team Free Events:
+    let availableFreeTeamEvents: any[] = [];
+
+    for (let i = 0; i < allFreeTeamEvents.length; i++) {
+      const event = allFreeTeamEvents[i];
+
+      const enrolledEvents = await EnrolledTeamEvent.find({
+        event_id: event._id,
+      });
+
+      if (enrolledEvents.length <= event.participant_limit) {
+        const isUserEnrolled = enrolledEvents.find(
+          (enrolledEvent) =>
+            enrolledEvent.team_leader_register_user_id === user._id ||
+            enrolledEvent.team_emails.includes(user.email),
+        );
+
+        if (!isUserEnrolled) {
+          availableFreeTeamEvents.push(event);
+        }
+      }
+    }
+
+    const freeAvailableEvents = {
+      individualEvents: availableFreeIndividualEvents || [],
+      teamEvents: availableFreeTeamEvents || [],
+    };
+
+    // Here is the end of the logic of free events. <==========
+
+    events = events.filter((event) => event.entry_fee > 0);
+
+    const allIndividualEvents = events.filter(
+      (event) => event.participants_type === "individual",
+    );
+    const allTeamEvents = events.filter(
+      (event) => event.participants_type === "team",
+    );
+
+    // Fetch All Enrolled Events (conditions are isPaid: false and reservation_time > currentTime)
+    const currentTime = new Date();
+
+    const enrolledIndividualEvents = await EnrolledIndividualEvent.find({
+      $or: [
+        // { isPaid: true }, // Do i really need this condition? I think not, because if the user has already paid for the event, then he/she should not be able to enroll again. So, we can remove this condition.
+        {
+          isPaid: false,
+          reservation_time: { $gt: currentTime },
+        },
+      ],
+    });
+
+    const enrolledTeamEvents = await EnrolledTeamEvent.find({
+      $or: [
+        // { isPaid: true }, // Same here
+        {
+          isPaid: false,
+          reservation_time: { $gt: currentTime },
+        },
+      ],
+    });
+
+    // Now we will filter the events to get the available individual events based on the participant limit and the number of enrolled events for that event.
+    let availableIndividualEvents: any[] = [];
+    for (let i = 0; i < allIndividualEvents.length; i++) {
+      const event = allIndividualEvents[i];
+
+      // Here we get all the enrollment docs for the current iterated event.
+      const temp = enrolledIndividualEvents.filter(
+        (enrolledEvent) =>
+          enrolledEvent.event_id.toString() === event._id.toString(),
+      );
+
+      // Here we are checking the iterate event's participant limit with the number of enrolled events for that event. If the participant limit is greater than or equal to the number of enrolled events, we will add that event to the availableIndividualEvents array.
+      if (temp.length < event.participant_limit) {
+        const alreadyEnrolled = temp.some(
+          (enrolledEvent) =>
+            enrolledEvent.register_user_id.toString() === user._id.toString(),
+        );
+
+        if (!alreadyEnrolled) {
+          availableIndividualEvents.push(event);
+        }
+      }
+    }
+
+    // Now we will filter the events to get the available team events based on the participant limit and the number of enrolled events for that event.
+    let availableTeamEvents: any[] = [];
+
+    for (let i = 0; i < allTeamEvents.length; i++) {
+      const event = allTeamEvents[i];
+
+      // Get all enrollments for this event
+      const temp = enrolledTeamEvents.filter(
+        (enrolledEvent) =>
+          enrolledEvent.event_id.toString() === event._id.toString(),
+      );
+
+      // Check whether capacity remains
+      if (event.participant_limit > temp.length) {
+        // Check whether the user is already a leader or team member
+        const alreadyEnrolled = temp.some(
+          (enrolledEvent) =>
+            enrolledEvent.team_leader_register_user_id.toString() ===
+              user._id.toString() ||
+            enrolledEvent.team_emails.includes(user.email),
+        );
+
+        // Add the event only if the user is not already enrolled
+        if (!alreadyEnrolled) {
+          availableTeamEvents.push(event);
+        }
+      }
+    }
+
+    const availableEvents = {
+      individualEvents: availableIndividualEvents || [],
+      teamEvents: availableTeamEvents || [],
+    };
+
+    // Here we have to show the user's enrolled events and also updates the reservation time for all the enrolled events that are not paid yet. And the reservation time will be extended by 5 minutes from the current time.
+    const extendedReservationTime = new Date(Date.now() + 5 * 60 * 1000);
+
+    await EnrolledIndividualEvent.updateMany(
+      {
+        register_user_id: user._id,
+        isPaid: false,
+        reservation_time: { $gt: currentTime },
+        isExtended: false,
+      },
+      {
+        $set: {
+          reservation_time: extendedReservationTime,
+          isExtended: true,
+        },
+      },
+    );
+
+    const enrolledUserIndividualEvents = await EnrolledIndividualEvent.find({
+      $and: [
+        {
+          register_user_id: user._id,
+        },
+        {
+          isPaid: false,
+          reservation_time: { $gt: currentTime },
+        },
+      ],
+    }).select("-transaction_id -__v");
+
+    await EnrolledTeamEvent.updateMany(
+      {
+        $or: [
+          { team_leader_register_user_id: user._id },
+          { team_emails: user.email },
+        ],
+        isPaid: false,
+        reservation_time: { $gt: currentTime },
+        isExtended: false,
+      },
+      {
+        $set: {
+          reservation_time: extendedReservationTime,
+          isExtended: true,
+        },
+      },
+    );
+
+    const enrolledUserTeamEvents = await EnrolledTeamEvent.find({
+      $and: [
+        {
+          $or: [
+            { team_leader_register_user_id: user._id },
+            { team_emails: user.email },
+          ],
+        },
+        {
+          isPaid: false,
+          reservation_time: { $gt: currentTime },
+        },
+      ],
+    });
+
+    const enrollUserEvents = {
+      individualEvents: enrolledUserIndividualEvents || [],
+      teamEvents: enrolledUserTeamEvents || [],
+    };
+
+    return NextResponse.json(
+      {
+        message: "User and enrolled events fetched successfully",
+        data: {
+          user: {
+            id: user._id,
+            name: user.full_name,
+            email: user.email,
+          },
+          availableEvents,
+          enrollUserEvents,
+          freeAvailableEvents,
+        },
+        error: null,
+        redirect: false,
+        redirectUrl: null,
+      },
+      { status: 200 },
+    );
+  } catch (error) {
+    return NextResponse.json(
+      {
+        message: "Error fetching token",
+        data: null,
+        error: error,
+        redirect: false,
+        redirectUrl: null,
+      },
+      { status: 500 },
+    );
+  }
 }
 
 export async function POST(request: NextRequest) {
-    try {
-        const body = await request.json();
-        const { eventId } = body; // for now only individual events
-        const cookieStore = await cookies();
-        const userToken = cookieStore.get("nv-session")?.value;
-        const tempToken = cookieStore.get("nv-session-temp")?.value;
+  try {
+    const body = await request.json();
+    const { eventId } = body; // for now only individual events
+    const cookieStore = await cookies();
+    const userToken = cookieStore.get("nv-session")?.value;
+    const tempToken = cookieStore.get("nv-session-temp")?.value;
 
-        if (!userToken || !tempToken) {
-            return NextResponse.json(
-                {
-                    message: "Required tokens are missing",
-                    data: null,
-                    error: "Missing session token",
-                    redirect: true,
-                    redirectUrl: "/register/check-email",
-                },
-                { status: 401 }
-            );
-        }
-
-        const userData = verifyJWT(userToken) as TokenData | null;
-        const tempData = verifyJWT(tempToken) as TokenData | null;
-
-        if (userData === null || tempData === null) {
-            return NextResponse.json(
-                {
-                    message: "Invalid or expired tokens",
-                    data: null,
-                    error: "Invalid session token",
-                    redirect: true,
-                    redirectUrl: "/register/check-email",
-                },
-                { status: 401 }
-            );
-        }
-
-        await connectToDatabase();
-
-        const event = await Event.findOne({ _id: eventId, entry_fee: { $gt: 0 } });
-
-        if (!event) {
-            return NextResponse.json(
-                {
-                    message: "Event not found",
-                    data: null,
-                    error: "Event does not exist",
-                    redirect: false,
-                    redirectUrl: null,
-                },
-                { status: 404 });
-        }
-
-        // Fetch User Details
-        const user = await RegisterUser.findById(userData.user.id);
-
-        if (!user) {
-            return NextResponse.json(
-                {
-                    message: "User not found",
-                    data: null,
-                    error: "User does not exist",
-                    redirect: true,
-                    redirectUrl: "/register/check-email",
-                },
-                { status: 404 });
-        }
-
-        const entryTicket = await EntryTicket.findOne({ userId: user._id, isPaid: true })
-
-        if (!entryTicket) {
-            return NextResponse.json(
-                {
-                    message: "Entry ticket not found for the user",
-                    data: null,
-                    error: "Entry ticket does not exist",
-                    redirect: true,
-                    redirectUrl: "/register/entry-ticket",
-                },
-                { status: 404 });
-        }
-
-        const currentTime = new Date();
-        let newEvent;
-        if (event.participants_type === "individual") {
-
-            const enrolledEvent = await EnrolledIndividualEvent.findOne({
-                register_user_id: user._id,
-                event_id: eventId
-            });
-
-            if (enrolledEvent && enrolledEvent.reservation_time < currentTime) {
-                enrolledEvent.reservation_time = new Date(currentTime.getTime() + 5 * 60 * 1000);
-                enrolledEvent.isExtended = false;
-                await enrolledEvent.save();
-
-                return NextResponse.json({
-                    message: "Reservation time extended for the enrolled event",
-                    data: enrolledEvent,
-                    error: null,
-                    redirect: false,
-                    redirectUrl: null
-                }, { status: 200 })
-            }
-
-            const count = await EnrolledIndividualEvent.countDocuments({
-                event_id: eventId,
-                $or: [
-                    { isPaid: true },
-                    {
-                        isPaid: false,
-                        reservation_time: { $gt: currentTime }
-                    }
-                ]
-            });
-
-
-            if (event.participant_limit <= count) {
-                return NextResponse.json({
-                    message: "Participant limit reached for this event",
-                    data: null,
-                    error: "Participant limit reached",
-                    redirect: false,
-                    redirectUrl: null
-                }, { status: 400 })
-            }
-
-            if (!enrolledEvent) {
-                newEvent = await EnrolledIndividualEvent.create({
-                    register_user_id: user._id,
-                    event_id: eventId,
-                    reservation_time: new Date(currentTime.getTime() + 5 * 60 * 1000),
-                    isPaid: false,
-                    isExtended: false,
-                    transaction_id: null
-                });
-
-                if (!newEvent) {
-                    return NextResponse.json({
-                        message: "Error creating enrolled event",
-                        data: null,
-                        error: "Failed to create enrolled event",
-                        redirect: false,
-                        redirectUrl: null
-                    }, { status: 500 })
-                }
-            }
-        } else if (event.participants_type === "team") {
-            const teamLeaderId = user._id;
-            const { teamName, teamEmails } = body;
-            const team_length = teamEmails.length + 1; // +1 for the team leader
-
-            if (
-                event.min_team_size > team_length ||
-                event.max_team_size < team_length
-            ) {
-                return NextResponse.json({
-                    message: "Team size is not valid for this event",
-                    data: null,
-                    error: "Invalid team size",
-                    redirect: false,
-                    redirectUrl: null
-                }, { status: 400 })
-            }
-
-            if (teamEmails && teamEmails.length > 0) {
-                for (const email of teamEmails) {
-                    const existingUser = await RegisterUser.findOne({ email: email });
-
-                    if (!existingUser) {
-                        return NextResponse.json({
-                            message: `Team member with email ${email} is not registered`,
-                            data: null,
-                            error: "Team member not registered",
-                            redirect: false,
-                            redirectUrl: null
-                        }, { status: 400 })
-                    }
-
-                    const userEntryTicket = await EntryTicket.findOne({ userId: existingUser?._id, isPaid: true })
-                    if (!userEntryTicket) {
-                        return NextResponse.json({
-                            message: `Team member with email ${email} has not paid for the entry ticket`,
-                            data: null,
-                            error: "Team member entry ticket not paid",
-                            redirect: false,
-                            redirectUrl: null
-                        }, { status: 400 })
-                    }
-                }
-            }
-
-            const existingTeamEvent = await EnrolledTeamEvent.findOne({
-                event_id: eventId,
-                $or: [
-                    { team_leader_register_user_id: teamLeaderId },
-                    { team_emails: { $in: teamEmails } },
-                    { isPaid: false }
-                ]
-            });
-
-            if (existingTeamEvent && existingTeamEvent.reservation_time < currentTime) {
-                existingTeamEvent.reservation_time = new Date(currentTime.getTime() + 5 * 60 * 1000);
-                existingTeamEvent.isExtended = false;
-                await existingTeamEvent.save();
-
-                return NextResponse.json({
-                    message: "Reservation time extended for the enrolled team event",
-                    data: existingTeamEvent,
-                    error: null,
-                    redirect: false,
-                    redirectUrl: null
-                }, { status: 200 })
-            }
-
-            const count = await EnrolledTeamEvent.countDocuments({
-                event_id: eventId,
-                $or: [
-                    { isPaid: true },
-                    {
-                        isPaid: false,
-                        reservation_time: { $gt: currentTime }
-                    }
-                ]
-            });
-
-            if (event.participant_limit <= count) {
-                return NextResponse.json({
-                    message: "Participant team limit reached for this event",
-                    data: null,
-                    error: "Participant team limit reached",
-                    redirect: false,
-                    redirectUrl: null
-                }, { status: 400 })
-            }
-
-            if (!existingTeamEvent) {
-                newEvent = await EnrolledTeamEvent.create({
-                    team_leader_register_user_id: teamLeaderId,
-                    event_id: eventId,
-                    team_length,
-                    team_name: teamName,
-                    team_emails: teamEmails,
-                    reservation_time: new Date(currentTime.getTime() + 5 * 60 * 1000),
-                    isPaid: false,
-                    isExtended: false,
-                    transaction_id: null
-                });
-            }
-        }
-
-        return NextResponse.json({
-            message: "Enrolled event created successfully",
-            data: newEvent,
-            error: null,
-            redirect: false,
-            redirectUrl: null
-        }, { status: 201 });
-    } catch (error) {
-        return NextResponse.json({
-            message: "Error creating enrolled events",
-            data: null,
-            error: error,
-            redirect: false,
-            redirectUrl: null
-        }, { status: 500 })
+    if (!userToken || !tempToken) {
+      return NextResponse.json(
+        {
+          message: "Required tokens are missing",
+          data: null,
+          error: "Missing session token",
+          redirect: true,
+          redirectUrl: "/register/check-email",
+        },
+        { status: 401 },
+      );
     }
 
+    const userData = verifyJWT(userToken) as TokenData | null;
+    const tempData = verifyJWT(tempToken) as TokenData | null;
+
+    if (userData === null || tempData === null) {
+      return NextResponse.json(
+        {
+          message: "Invalid or expired tokens",
+          data: null,
+          error: "Invalid session token",
+          redirect: true,
+          redirectUrl: "/register/check-email",
+        },
+        { status: 401 },
+      );
+    }
+
+    await connectToDatabase();
+
+    const event = await Event.findOne({ _id: eventId, entry_fee: { $gt: 0 } });
+
+    if (!event) {
+      return NextResponse.json(
+        {
+          message: "Event not found",
+          data: null,
+          error: "Event does not exist",
+          redirect: false,
+          redirectUrl: null,
+        },
+        { status: 404 },
+      );
+    }
+
+    // Fetch User Details
+    const user = await RegisterUser.findById(userData.user.id);
+
+    if (!user) {
+      return NextResponse.json(
+        {
+          message: "User not found",
+          data: null,
+          error: "User does not exist",
+          redirect: true,
+          redirectUrl: "/register/check-email",
+        },
+        { status: 404 },
+      );
+    }
+
+    const entryTicket = await EntryTicket.findOne({
+      userId: user._id,
+      isPaid: true,
+    });
+
+    if (!entryTicket) {
+      return NextResponse.json(
+        {
+          message: "Entry ticket not found for the user",
+          data: null,
+          error: "Entry ticket does not exist",
+          redirect: true,
+          redirectUrl: "/register/entry-ticket",
+        },
+        { status: 404 },
+      );
+    }
+
+    if (event && event.entry_fee === 0) {
+      if (event.participants_type === "individual") {
+        const enrolledEvent = await EnrolledIndividualEvent.findOne({
+          register_user_id: user._id,
+          event_id: eventId,
+        });
+
+        if (enrolledEvent) {
+          return NextResponse.json(
+            {
+              message: "User is already enrolled in this free individual event",
+              data: null,
+              error: "User already enrolled",
+              redirect: false,
+              redirectUrl: null,
+            },
+            { status: 400 },
+          );
+        }
+
+        const newEnrolledEvent = await EnrolledIndividualEvent.create({
+          register_user_id: user._id,
+          event_id: eventId,
+          transaction_id: null,
+          isPaid: true,
+          reservation_time: new Date(),
+          isExtended: false,
+        });
+
+        if (!newEnrolledEvent) {
+          return NextResponse.json(
+            {
+              message: "Error enrolling user in the free individual event",
+              data: null,
+              error: "Failed to enroll user",
+              redirect: false,
+              redirectUrl: null,
+            },
+            { status: 500 },
+          );
+        }
+
+        return NextResponse.json(
+          {
+            message: "User enrolled successfully in the free individual event",
+            data: newEnrolledEvent,
+            error: null,
+            redirect: false,
+            redirectUrl: null,
+          },
+          { status: 201 },
+        );
+      } else if (event.participants_type === "team") {
+        const { teamName, teamEmails } = body;
+
+        const team_length = teamEmails.length + 1; // +1 for the team leader
+
+        // team_length is greater than or equal to min_team_size and less than or equal to max_team_size
+        if (
+          event.min_team_size <= team_length &&
+          event.max_team_size >= team_length
+        ) {
+          // Check if the team size is valid for the event
+
+          if (teamEmails && teamEmails.length > 0) {
+            for (const email of teamEmails) {
+              const existingUser = await RegisterUser.findOne({ email: email });
+
+              if (!existingUser) {
+                return NextResponse.json(
+                  {
+                    message: `Team member with email ${email} is not registered`,
+                    data: null,
+                    error: "Team member not registered",
+                    redirect: false,
+                    redirectUrl: null,
+                  },
+                  { status: 400 },
+                );
+              }
+
+              const userEntryTicket = await EntryTicket.findOne({
+                userId: existingUser?._id,
+                isPaid: true,
+              });
+              if (!userEntryTicket) {
+                return NextResponse.json(
+                  {
+                    message: `Team member with email ${email} has not paid for the entry ticket`,
+                    data: null,
+                    error: "Team member entry ticket not paid",
+                    redirect: false,
+                    redirectUrl: null,
+                  },
+                  { status: 400 },
+                );
+              }
+            }
+          }
+
+          const existingEnrollment = await EnrolledTeamEvent.findOne({
+            $or: [
+              { team_leader_register_user_id: user._id },
+              { team_emails: { $in: teamEmails } },
+            ],
+            event_id: eventId,
+          });
+
+          if (existingEnrollment) {
+            return NextResponse.json(
+              {
+                message:
+                  "User or one of the team members is already enrolled in this free team event",
+                data: null,
+                error: "User or team member already enrolled",
+                redirect: false,
+                redirectUrl: null,
+              },
+              { status: 400 },
+            );
+          }
+
+          const newEnrolledTeamEvent = await EnrolledTeamEvent.create({
+            team_leader_register_user_id: user._id,
+            team_name: teamName,
+            team_emails: teamEmails,
+            team_length: team_length,
+            event_id: eventId,
+            transaction_id: null,
+            isPaid: true,
+            reservation_time: new Date(),
+            isExtended: false,
+          });
+
+          if (!newEnrolledTeamEvent) {
+            return NextResponse.json(
+              {
+                message: "Error enrolling user in the free team event",
+                data: null,
+                error: "Failed to enroll user",
+                redirect: false,
+                redirectUrl: null,
+              },
+              { status: 500 },
+            );
+          }
+
+          return NextResponse.json(
+            {
+              message: "User enrolled successfully in the free team event",
+              data: newEnrolledTeamEvent,
+              error: null,
+              redirect: false,
+              redirectUrl: null,
+            },
+            { status: 201 },
+          );
+        } else {
+          return NextResponse.json(
+            {
+              message: "Team size is not valid for this event",
+              data: null,
+              error: "Invalid team size",
+              redirect: false,
+              redirectUrl: null,
+            },
+            { status: 400 },
+          );
+        }
+      }
+    }
+
+    const currentTime = new Date();
+    let newEvent;
+    if (event.participants_type === "individual") {
+      const enrolledEvent = await EnrolledIndividualEvent.findOne({
+        register_user_id: user._id,
+        event_id: eventId,
+      });
+
+      if (enrolledEvent && enrolledEvent.reservation_time < currentTime) {
+        enrolledEvent.reservation_time = new Date(
+          currentTime.getTime() + 5 * 60 * 1000,
+        );
+        enrolledEvent.isExtended = false;
+        await enrolledEvent.save();
+
+        return NextResponse.json(
+          {
+            message: "Reservation time extended for the enrolled event",
+            data: enrolledEvent,
+            error: null,
+            redirect: false,
+            redirectUrl: null,
+          },
+          { status: 200 },
+        );
+      }
+
+      const count = await EnrolledIndividualEvent.countDocuments({
+        event_id: eventId,
+        $or: [
+          { isPaid: true },
+          {
+            isPaid: false,
+            reservation_time: { $gt: currentTime },
+          },
+        ],
+      });
+
+      if (event.participant_limit <= count) {
+        return NextResponse.json(
+          {
+            message: "Participant limit reached for this event",
+            data: null,
+            error: "Participant limit reached",
+            redirect: false,
+            redirectUrl: null,
+          },
+          { status: 400 },
+        );
+      }
+
+      if (!enrolledEvent) {
+        newEvent = await EnrolledIndividualEvent.create({
+          register_user_id: user._id,
+          event_id: eventId,
+          reservation_time: new Date(currentTime.getTime() + 5 * 60 * 1000),
+          isPaid: false,
+          isExtended: false,
+          transaction_id: null,
+        });
+
+        if (!newEvent) {
+          return NextResponse.json(
+            {
+              message: "Error creating enrolled event",
+              data: null,
+              error: "Failed to create enrolled event",
+              redirect: false,
+              redirectUrl: null,
+            },
+            { status: 500 },
+          );
+        }
+      }
+    } else if (event.participants_type === "team") {
+      const teamLeaderId = user._id;
+      const { teamName, teamEmails } = body;
+      const team_length = teamEmails.length + 1; // +1 for the team leader
+
+      if (
+        event.min_team_size > team_length ||
+        event.max_team_size < team_length
+      ) {
+        return NextResponse.json(
+          {
+            message: "Team size is not valid for this event",
+            data: null,
+            error: "Invalid team size",
+            redirect: false,
+            redirectUrl: null,
+          },
+          { status: 400 },
+        );
+      }
+
+      if (teamEmails && teamEmails.length > 0) {
+        for (const email of teamEmails) {
+          const existingUser = await RegisterUser.findOne({ email: email });
+
+          if (!existingUser) {
+            return NextResponse.json(
+              {
+                message: `Team member with email ${email} is not registered`,
+                data: null,
+                error: "Team member not registered",
+                redirect: false,
+                redirectUrl: null,
+              },
+              { status: 400 },
+            );
+          }
+
+          const userEntryTicket = await EntryTicket.findOne({
+            userId: existingUser?._id,
+            isPaid: true,
+          });
+          if (!userEntryTicket) {
+            return NextResponse.json(
+              {
+                message: `Team member with email ${email} has not paid for the entry ticket`,
+                data: null,
+                error: "Team member entry ticket not paid",
+                redirect: false,
+                redirectUrl: null,
+              },
+              { status: 400 },
+            );
+          }
+        }
+      }
+
+      const existingTeamEvent = await EnrolledTeamEvent.findOne({
+        event_id: eventId,
+        $or: [
+          { team_leader_register_user_id: teamLeaderId },
+          { team_emails: { $in: teamEmails } },
+          { isPaid: false },
+        ],
+      });
+
+      if (
+        existingTeamEvent &&
+        existingTeamEvent.reservation_time < currentTime
+      ) {
+        existingTeamEvent.reservation_time = new Date(
+          currentTime.getTime() + 5 * 60 * 1000,
+        );
+        existingTeamEvent.isExtended = false;
+        await existingTeamEvent.save();
+
+        return NextResponse.json(
+          {
+            message: "Reservation time extended for the enrolled team event",
+            data: existingTeamEvent,
+            error: null,
+            redirect: false,
+            redirectUrl: null,
+          },
+          { status: 200 },
+        );
+      }
+
+      const count = await EnrolledTeamEvent.countDocuments({
+        event_id: eventId,
+        $or: [
+          { isPaid: true },
+          {
+            isPaid: false,
+            reservation_time: { $gt: currentTime },
+          },
+        ],
+      });
+
+      if (event.participant_limit <= count) {
+        return NextResponse.json(
+          {
+            message: "Participant team limit reached for this event",
+            data: null,
+            error: "Participant team limit reached",
+            redirect: false,
+            redirectUrl: null,
+          },
+          { status: 400 },
+        );
+      }
+
+      if (!existingTeamEvent) {
+        newEvent = await EnrolledTeamEvent.create({
+          team_leader_register_user_id: teamLeaderId,
+          event_id: eventId,
+          team_length,
+          team_name: teamName,
+          team_emails: teamEmails,
+          reservation_time: new Date(currentTime.getTime() + 5 * 60 * 1000),
+          isPaid: false,
+          isExtended: false,
+          transaction_id: null,
+        });
+      }
+    }
+
+    return NextResponse.json(
+      {
+        message: "Enrolled event created successfully",
+        data: newEvent,
+        error: null,
+        redirect: false,
+        redirectUrl: null,
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    return NextResponse.json(
+      {
+        message: "Error creating enrolled events",
+        data: null,
+        error: error,
+        redirect: false,
+        redirectUrl: null,
+      },
+      { status: 500 },
+    );
+  }
 }
 
 export async function DELETE(request: NextRequest) {
-    try {
-        const body = await request.json();
-        const { enrolledEventId, eventId } = body;
-        const cookieStore = await cookies();
-        const userToken = cookieStore.get("nv-session")?.value;
-        const tempToken = cookieStore.get("nv-session-temp")?.value;
+  try {
+    const body = await request.json();
+    const { enrolledEventId, eventId } = body;
+    const cookieStore = await cookies();
+    const userToken = cookieStore.get("nv-session")?.value;
+    const tempToken = cookieStore.get("nv-session-temp")?.value;
 
-        if (!userToken || !tempToken) {
-            return NextResponse.json(
-                {
-                    message: "Required tokens are missing",
-                    data: null,
-                    error: "Missing session token",
-                    redirect: true,
-                    redirectUrl: "/register/check-email",
-                },
-                { status: 401 }
-            );
-        }
-
-        const userData = verifyJWT(userToken) as TokenData | null;
-        const tempData = verifyJWT(tempToken) as TokenData | null;
-
-        if (userData === null || tempData === null) {
-            return NextResponse.json(
-                {
-                    message: "Invalid or expired tokens",
-                    data: null,
-                    error: "Invalid session token",
-                    redirect: true,
-                    redirectUrl: "/register/check-email",
-                },
-                { status: 401 }
-            );
-        }
-
-        await connectToDatabase();
-
-        const event = await Event.findById(eventId);
-
-        if (!event) {
-            return NextResponse.json(
-                {
-                    message: "Event not found",
-                    data: null,
-                    error: "Event does not exist",
-                    redirect: false,
-                    redirectUrl: null,
-                },
-                { status: 404 });
-        }
-
-        // Fetch User Details
-        const user = await RegisterUser.findById(userData.user.id);
-
-        if (!user) {
-            return NextResponse.json(
-                {
-                    message: "User not found",
-                    data: null,
-                    error: "User does not exist",
-                    redirect: true,
-                    redirectUrl: "/register/check-email",
-                },
-                { status: 404 });
-        }
-
-        if (event.participants_type === "individual") {
-            const deletedEvent = await EnrolledIndividualEvent.findOneAndDelete({
-                _id: enrolledEventId,
-                register_user_id: userData.user.id,
-                event_id: eventId
-            });
-
-            if (!deletedEvent) {
-                return NextResponse.json({
-                    message: "Enrolled individual event not found or already deleted",
-                    data: null,
-                    error: "Enrolled individual event does not exist",
-                    redirect: false,
-                    redirectUrl: null
-                }, { status: 404 });
-            }
-        } else if (event.participants_type === "team") {
-            const deletedEvent = await EnrolledTeamEvent.findOne({
-                _id: enrolledEventId,
-                team_leader_register_user_id: user._id,
-                event_id: eventId
-            });
-
-            if (!deletedEvent) {
-                return NextResponse.json({
-                    message: "Enrolled team event not found or already deleted",
-                    data: null,
-                    error: "Enrolled team event does not exist",
-                    redirect: false,
-                    redirectUrl: null
-                }, { status: 404 });
-            }
-
-            if (deletedEvent.team_leader_register_user_id.toString() === user._id.toString()) {
-                await EnrolledTeamEvent.findByIdAndDelete(enrolledEventId);
-            } else {
-                return NextResponse.json(
-                    {
-                        message: "Only the team leader can delete the enrolled team event",
-                        data: null,
-                        error: "Unauthorized action",
-                        redirect: false,
-                        redirectUrl: null
-                    },
-                    { status: 403 }
-                );
-            }
-        }
-
-        return NextResponse.json({
-            message: "Enrolled event deleted successfully",
-            data: null,
-            error: null,
-            redirect: false,
-            redirectUrl: null
-        }, { status: 200 });
-    } catch (error) {
-        return NextResponse.json({
-            message: "Error deleting enrolled events",
-            data: null,
-            error: error,
-            redirect: false,
-            redirectUrl: null
-        }, { status: 500 })
+    if (!userToken || !tempToken) {
+      return NextResponse.json(
+        {
+          message: "Required tokens are missing",
+          data: null,
+          error: "Missing session token",
+          redirect: true,
+          redirectUrl: "/register/check-email",
+        },
+        { status: 401 },
+      );
     }
+
+    const userData = verifyJWT(userToken) as TokenData | null;
+    const tempData = verifyJWT(tempToken) as TokenData | null;
+
+    if (userData === null || tempData === null) {
+      return NextResponse.json(
+        {
+          message: "Invalid or expired tokens",
+          data: null,
+          error: "Invalid session token",
+          redirect: true,
+          redirectUrl: "/register/check-email",
+        },
+        { status: 401 },
+      );
+    }
+
+    await connectToDatabase();
+
+    const event = await Event.findById(eventId);
+
+    if (!event) {
+      return NextResponse.json(
+        {
+          message: "Event not found",
+          data: null,
+          error: "Event does not exist",
+          redirect: false,
+          redirectUrl: null,
+        },
+        { status: 404 },
+      );
+    }
+
+    // Fetch User Details
+    const user = await RegisterUser.findById(userData.user.id);
+
+    if (!user) {
+      return NextResponse.json(
+        {
+          message: "User not found",
+          data: null,
+          error: "User does not exist",
+          redirect: true,
+          redirectUrl: "/register/check-email",
+        },
+        { status: 404 },
+      );
+    }
+
+    if (event.participants_type === "individual") {
+      const deletedEvent = await EnrolledIndividualEvent.findOneAndDelete({
+        _id: enrolledEventId,
+        register_user_id: userData.user.id,
+        event_id: eventId,
+      });
+
+      if (!deletedEvent) {
+        return NextResponse.json(
+          {
+            message: "Enrolled individual event not found or already deleted",
+            data: null,
+            error: "Enrolled individual event does not exist",
+            redirect: false,
+            redirectUrl: null,
+          },
+          { status: 404 },
+        );
+      }
+    } else if (event.participants_type === "team") {
+      const deletedEvent = await EnrolledTeamEvent.findOne({
+        _id: enrolledEventId,
+        team_leader_register_user_id: user._id,
+        event_id: eventId,
+      });
+
+      if (!deletedEvent) {
+        return NextResponse.json(
+          {
+            message: "Enrolled team event not found or already deleted",
+            data: null,
+            error: "Enrolled team event does not exist",
+            redirect: false,
+            redirectUrl: null,
+          },
+          { status: 404 },
+        );
+      }
+
+      if (
+        deletedEvent.team_leader_register_user_id.toString() ===
+        user._id.toString()
+      ) {
+        await EnrolledTeamEvent.findByIdAndDelete(enrolledEventId);
+      } else {
+        return NextResponse.json(
+          {
+            message: "Only the team leader can delete the enrolled team event",
+            data: null,
+            error: "Unauthorized action",
+            redirect: false,
+            redirectUrl: null,
+          },
+          { status: 403 },
+        );
+      }
+    }
+
+    return NextResponse.json(
+      {
+        message: "Enrolled event deleted successfully",
+        data: null,
+        error: null,
+        redirect: false,
+        redirectUrl: null,
+      },
+      { status: 200 },
+    );
+  } catch (error) {
+    return NextResponse.json(
+      {
+        message: "Error deleting enrolled events",
+        data: null,
+        error: error,
+        redirect: false,
+        redirectUrl: null,
+      },
+      { status: 500 },
+    );
+  }
 }
