@@ -56,8 +56,12 @@ function mapEvent(e: Record<string, unknown>): SerializedEvent {
     long_description: e.long_description ? String(e.long_description) : undefined,
     venue: e.venue ? String(e.venue) : undefined,
     date_time: e.date_time ? String(e.date_time) : undefined,
-    image_url: e.image_url ? String(e.image_url) : undefined,
-    entry_fee: typeof e.entry_fee === 'number' ? e.entry_fee : undefined,
+    entry_fee:
+      typeof e.entry_fee === 'number'
+        ? e.entry_fee
+        : e.entry_fee !== undefined && e.entry_fee !== null && e.entry_fee !== ''
+        ? Number(e.entry_fee) || 0
+        : 0,
     participants_type: (e.participants_type as 'individual' | 'team') ?? undefined,
     team_size: typeof e.team_size === 'number' ? e.team_size : undefined,
     min_team_size: typeof e.min_team_size === 'number' ? e.min_team_size : undefined,
@@ -186,8 +190,15 @@ async function EnrollEventContent() {
         individualEvents: Record<string, unknown>[];
         teamEvents: Record<string, unknown>[];
       };
+      freeAvailableEvents?: {
+        individualEvents: Record<string, unknown>[];
+        teamEvents: Record<string, unknown>[];
+      };
     };
   };
+
+  const freeIndEvents = data.freeAvailableEvents?.individualEvents ?? [];
+  const freeTmEvents = data.freeAvailableEvents?.teamEvents ?? [];
 
   // Build a lookup map of ALL events for populating event_details on enrolled docs.
   // Falls back to available events from the enroll route if /api/event fails.
@@ -196,6 +207,8 @@ async function EnrollEventContent() {
     : [
         ...data.availableEvents.individualEvents,
         ...data.availableEvents.teamEvents,
+        ...freeIndEvents,
+        ...freeTmEvents,
       ];
 
   const eventsMap = new Map<string, SerializedEvent>(
@@ -209,6 +222,8 @@ async function EnrollEventContent() {
   const availableEvents: SerializedEvent[] = [
     ...data.availableEvents.individualEvents.map(mapEvent),
     ...data.availableEvents.teamEvents.map(mapEvent),
+    ...freeIndEvents.map(mapEvent),
+    ...freeTmEvents.map(mapEvent),
   ];
 
   // --- Pending (isPaid: false, reservation active) enrolled events ---

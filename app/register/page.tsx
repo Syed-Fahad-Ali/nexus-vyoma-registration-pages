@@ -4,6 +4,9 @@ import Navbar from '@/components/navbar/Navbar';
 import RegistrationGridBackground from '@/components/registration/RegistrationGridBackground';
 import RegistrationFormStep from '@/components/registration/RegistrationFormStep';
 
+import { redirect } from 'next/navigation';
+import { isUserLoggedIn } from '@/utilities/session';
+
 export const metadata: Metadata = {
   title: 'Complete Registration | Nexus Vyoma 2026',
   description:
@@ -15,6 +18,10 @@ interface RegisterPageProps {
 }
 
 async function RegisterContent({ searchParams }: RegisterPageProps) {
+  if (await isUserLoggedIn()) {
+    redirect('/register/enroll-event');
+  }
+
   const params = searchParams ? await searchParams : {};
   const queryEmail = typeof params.email === 'string' ? params.email.trim() : '';
 

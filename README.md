@@ -43,6 +43,41 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Newest first.
 
+### 2026-10-28 — Team Leader Email in Purchased Events, Session Logout API & Auth Route Guards
+
+**Done**
+- **Team Leader Email in Purchased Events**: Displayed the team leader email (`Leader: {team_leader_email || userEmail}`) on purchased team event cards in Section 02 of `EventEnrollmentView.tsx`.
+- **Server-Side Session Deletion on Logout**: Created `POST /api/registration/logout` route that expires both `nv-session` and `nv-session-temp` `httpOnly` cookies with `maxAge: 0`. Updated `handleLogout` in `EventEnrollmentView.tsx` to trigger this endpoint before redirecting to `/register/check-email`.
+- **Logged-in Route Guards**: Created `utilities/session.ts` with `isUserLoggedIn()` to verify active sessions. Added SSR guards in `app/register/check-email/page.tsx`, `app/register/verify-email/page.tsx`, and `app/register/page.tsx` that redirect authenticated visitors directly to `/register/enroll-event`.
+- **Verification**: Ran `npx tsc --noEmit` locally with zero errors (0 KB downloaded).
+
+### 2026-10-28 — Move Enrolled Free Events to Purchased Events Container
+
+**Done**
+- **Enrolled Free Events in Purchased Events (Section 02)**: Included all confirmed enrollments (`individualPaid` and `teamPaid`) in the "Purchased Events" carousel, rendering `FREE` fee badge for free events and `₹{fee}` for paid events with full squad inspection support.
+- **Removed Enrolled Events from Free Events Catalog (Section 03)**: Filtered `freeEvents` with `!alreadyEnrolledIds.has(e._id)` so enrolled free events automatically move out of the free events catalog and appear in "Purchased Events".
+- **Empty State**: Added an empty state message when all free events have been enrolled.
+- **Verification**: Ran `npx tsc --noEmit` locally with zero errors.
+
+### 2026-10-28 — Purchased Events Renaming, Free Events Segregation & Lock
+
+**Done**
+- **Strict Free vs. Paid Normalization**: In `app/register/enroll-event/page.tsx` and `components/registration/EventEnrollmentView.tsx`, ensured `entry_fee` is strictly coerced to a number (`Number(e.entry_fee) || 0`) so paid events (`entry_fee > 0`) never appear in the Free Events catalog, and only strictly zero-fee events appear in Section 03.
+- **Section 02 Renamed to "Purchased Events"**: Updated the section heading from "Paid Events" to "Purchased Events", badge to `{count} PURCHASED`, empty state to "No purchased events yet", and card badges to "PURCHASED". Filtered Section 02 to strictly render purchased paid events (`entry_fee > 0`).
+- **Free Events Deletion Locked**: Removed the unenroll / delete (`✕`) button from enrolled free event cards in Section 03, rendering only a permanent `ENROLLED ✓` badge once confirmed.
+- **Verification**: Ran local `npx tsc --noEmit` which passed with zero errors.
+
+### 2026-10-28 — Free Events Enrollment Real API Integration
+
+**Done**
+- **SSR Free Available Events**: Updated `app/register/enroll-event/page.tsx` to read `data.freeAvailableEvents` from `enrollJson` and bundle them into initial server-rendered `availableEvents`.
+- **API Enrollment & Unenrollment**: Connected `handleToggleFreeEnrollment` (for individual free events) and `handleConfirmFreeTeamEnrollment` (for squad/team free events) in `components/registration/EventEnrollmentView.tsx` directly to `POST /api/enrollement/enroll-event`.
+- **API Unenrollment Support**: Connected `handleUnenrollFreeEvent` directly to `DELETE /api/enrollement/enroll-event` with `enrolledEventId` and `eventId`.
+- **Batch Processing**: Updated staged free events checkout in `handleProceedToPayment` to POST to `/api/enrollement/enroll-event` for permanent MongoDB persistence.
+- **Removed LocalStorage Fallback Workarounds**: Cleaned up manual client-side localStorage caching (`nv_free_enrolled_*`); enrolled free events now sync seamlessly with `paidEvents` (`isPaid: true`) across browsers and sessions.
+- **Button States**: Added `freeEnrollingId` tracking to prevent double submissions, showing loading spinners and disabled states during network requests.
+- **Verification**: Ran `npx tsc --noEmit` locally with zero TypeScript errors.
+
 ### 2026-10-27 — Event Index Sorting for /events Page
 
 **Done**

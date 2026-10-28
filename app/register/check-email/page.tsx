@@ -1,8 +1,10 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import Navbar from '@/components/navbar/Navbar';
 import RegistrationGridBackground from '@/components/registration/RegistrationGridBackground';
 import EmailStepForm from '@/components/registration/EmailStepForm';
+import { isUserLoggedIn } from '@/utilities/session';
 
 export const metadata: Metadata = {
   title: 'Enter Email | Nexus Vyoma 2026',
@@ -15,6 +17,10 @@ interface CheckEmailPageProps {
 }
 
 async function CheckEmailContent({ searchParams }: CheckEmailPageProps) {
+  if (await isUserLoggedIn()) {
+    redirect('/register/enroll-event');
+  }
+
   const params = searchParams ? await searchParams : {};
   const initialEmail = typeof params.email === 'string' ? params.email : '';
   return <EmailStepForm key={initialEmail} initialEmail={initialEmail} />;

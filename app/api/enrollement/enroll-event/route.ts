@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
         event_id: event._id,
       });
 
-      if (enrolledEvents.length <= event.participant_limit) {
+      if (enrolledEvents.length < event.participant_limit) {
         const isUserEnrolled = enrolledEvents.find(
           (enrolledEvent) => enrolledEvent.register_user_id === user._id,
         );
@@ -143,7 +143,8 @@ export async function GET(request: NextRequest) {
       if (enrolledEvents.length <= event.participant_limit) {
         const isUserEnrolled = enrolledEvents.find(
           (enrolledEvent) =>
-            enrolledEvent.team_leader_register_user_id === user._id ||
+            enrolledEvent.team_leader_register_user_id.toString() ===
+              user._id.toString() ||
             enrolledEvent.team_emails.includes(user.email),
         );
 
@@ -390,7 +391,7 @@ export async function POST(request: NextRequest) {
 
     await connectToDatabase();
 
-    const event = await Event.findOne({ _id: eventId, entry_fee: { $gt: 0 } });
+    const event = await Event.findOne({ _id: eventId });
 
     if (!event) {
       return NextResponse.json(

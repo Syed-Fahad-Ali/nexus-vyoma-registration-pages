@@ -1,8 +1,10 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import Navbar from '@/components/navbar/Navbar';
 import RegistrationGridBackground from '@/components/registration/RegistrationGridBackground';
 import OtpStepForm from '@/components/registration/OtpStepForm';
+import { isUserLoggedIn } from '@/utilities/session';
 
 export const metadata: Metadata = {
   title: 'Verify OTP | Nexus Vyoma 2026',
@@ -15,6 +17,10 @@ interface VerifyEmailPageProps {
 }
 
 async function VerifyEmailContent({ searchParams }: VerifyEmailPageProps) {
+  if (await isUserLoggedIn()) {
+    redirect('/register/enroll-event');
+  }
+
   const params = searchParams ? await searchParams : {};
   const email = typeof params.email === 'string' ? params.email : '';
   const sent = typeof params.sent === 'string' ? params.sent : '';

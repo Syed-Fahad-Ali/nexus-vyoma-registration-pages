@@ -144,7 +144,12 @@ export default function EventEnrollmentView({
             venue: e.venue ? String(e.venue) : undefined,
             date_time: e.date_time ? String(e.date_time) : undefined,
             image_url: e.image_url ? String(e.image_url) : undefined,
-            entry_fee: typeof e.entry_fee === 'number' ? e.entry_fee : undefined,
+            entry_fee:
+              typeof e.entry_fee === 'number'
+                ? e.entry_fee
+                : e.entry_fee !== undefined && e.entry_fee !== null && e.entry_fee !== ''
+                ? Number(e.entry_fee) || 0
+                : 0,
             participants_type: (e.participants_type as 'individual' | 'team') ?? undefined,
             team_size: typeof e.team_size === 'number' ? e.team_size : undefined,
             min_team_size: typeof e.min_team_size === 'number' ? e.min_team_size : undefined,
@@ -172,20 +177,6 @@ export default function EventEnrollmentView({
           const rawPaidInd = (paidJson.data.paidEvents.individualEvents || []) as Record<string, unknown>[];
           const rawPaidTm = (paidJson.data.paidEvents.teamEvents || []) as Record<string, unknown>[];
 
-          // Read stored free events from localStorage so API re-sync doesn't erase them
-          let storedFreeInd: SerializedEnrolledEvent[] = [];
-          let storedFreeTm: SerializedEnrolledEvent[] = [];
-          try {
-            const stored = localStorage.getItem(`nv_free_enrolled_${userEmail || 'attendee'}`);
-            if (stored) {
-              const parsed = JSON.parse(stored);
-              if (Array.isArray(parsed?.individual)) storedFreeInd = parsed.individual;
-              if (Array.isArray(parsed?.team)) storedFreeTm = parsed.team;
-            }
-          } catch {
-            // ignore
-          }
-
           const serverInd = rawPaidInd.map((doc) => {
             const eventId = String(doc.event_id);
             const matched = masterCatalog.find((m) => m._id === eventId);
@@ -197,8 +188,7 @@ export default function EventEnrollmentView({
               event_details: matched || (doc.event_details as SerializedEvent | undefined) || null,
             };
           });
-          const serverIndIds = new Set(serverInd.map((s) => s.event_id));
-          setIndividualPaid([...serverInd, ...storedFreeInd.filter((f) => !serverIndIds.has(f.event_id))]);
+          setIndividualPaid(serverInd);
 
           const serverTm = rawPaidTm.map((doc) => {
             const eventId = String(doc.event_id);
@@ -216,8 +206,7 @@ export default function EventEnrollmentView({
               event_details: matched || (doc.event_details as SerializedEvent | undefined) || null,
             };
           });
-          const serverTmIds = new Set(serverTm.map((s) => s.event_id));
-          setTeamPaid([...serverTm, ...storedFreeTm.filter((f) => !serverTmIds.has(f.event_id))]);
+          setTeamPaid(serverTm);
         }
 
         // --- Call 2: GET /api/enrollement/enroll-event (available & pending reservations) ---
@@ -354,7 +343,7 @@ export default function EventEnrollmentView({
   const eligibleIndividualEvents = eventsList.filter(
     (ev) =>
       ev.participants_type === 'individual' &&
-      (ev.entry_fee || 0) > 0 &&
+      (Number(ev.entry_fee) || 0) > 0 &&
       !alreadyEnrolledIds.has(ev._id) &&
       !selectedIndividualIds.includes(ev._id)
   );
@@ -362,62 +351,24 @@ export default function EventEnrollmentView({
   const eligibleTeamEvents = eventsList.filter(
     (ev) =>
       ev.participants_type === 'team' &&
-      (ev.entry_fee || 0) > 0 &&
+      (Number(ev.entry_fee) || 0) > 0 &&
       !alreadyEnrolledIds.has(ev._id) &&
       !selectedTeamEvents.some((t) => t.eventId === ev._id)
   );
 
-  // Local storage persistence helper for free events
-  const freeEventsStorageKey = `nv_free_enrolled_${userEmail || 'attendee'}`;
+  // Purchased events (includes both paid purchases and confirmed free event enrollments)
+  const purchasedIndividualEvents = individualPaid;
+  const purchasedTeamEvents = teamPaid;
+  const totalPurchasedCount = individualPaid.length + teamPaid.length;
 
-  const isFreeEventObj = (evId: string, details?: SerializedEvent | null) => {
-    if (details && (details.entry_fee === 0 || !details.entry_fee)) return true;
-    const inMaster = eventsList.find((m) => m._id === evId);
-    if (inMaster && (!inMaster.entry_fee || inMaster.entry_fee === 0)) return true;
-    return false;
-  };
+  // Free event active enrolling/unenrolling state tracker
+  const [freeEnrollingId, setFreeEnrollingId] = useState<string | null>(null);
 
-  const saveFreeEventsToStorage = (indEvents: SerializedEnrolledEvent[], tmEvents: SerializedEnrolledEvent[]) => {
-    if (typeof window === 'undefined') return;
-    try {
-      const freeInd = indEvents.filter((e) => isFreeEventObj(e.event_id, e.event_details));
-      const freeTm = tmEvents.filter((e) => isFreeEventObj(e.event_id, e.event_details));
-      localStorage.setItem(freeEventsStorageKey, JSON.stringify({ individual: freeInd, team: freeTm }));
-    } catch {
-      // ignore
-    }
-  };
-
-  // Restore free enrolled events from localStorage on mount
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const stored = localStorage.getItem(freeEventsStorageKey);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed?.individual) && parsed.individual.length > 0) {
-          setIndividualPaid((prev) => {
-            const existing = new Set(prev.map((e) => e.event_id));
-            const toAdd = parsed.individual.filter((e: SerializedEnrolledEvent) => !existing.has(e.event_id));
-            return [...prev, ...toAdd];
-          });
-        }
-        if (Array.isArray(parsed?.team) && parsed.team.length > 0) {
-          setTeamPaid((prev) => {
-            const existing = new Set(prev.map((e) => e.event_id));
-            const toAdd = parsed.team.filter((e: SerializedEnrolledEvent) => !existing.has(e.event_id));
-            return [...prev, ...toAdd];
-          });
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }, [freeEventsStorageKey]);
-
-  // Free events dropdown effect & enrollment states
+  // Free events dropdown effect & enrollment states (strictly entry_fee === 0 and not yet enrolled)
   const [isFreeEventsOpen, setIsFreeEventsOpen] = useState(true);
-  const freeEvents = eventsList.filter((e) => !e.entry_fee || e.entry_fee === 0);
+  const freeEvents = eventsList.filter(
+    (e) => (Number(e.entry_fee) || 0) === 0 && !alreadyEnrolledIds.has(e._id)
+  );
 
   // Horizontal scroll controls for Free Events Catalog
   const freeEventsScrollRef = useRef<HTMLDivElement>(null);
@@ -576,7 +527,7 @@ export default function EventEnrollmentView({
     setModalVerifiedMembers((prev) => prev.filter((m) => m.email !== email));
   };
 
-  const handleConfirmFreeTeamEnrollment = () => {
+  const handleConfirmFreeTeamEnrollment = async () => {
     if (!freeTeamModalEvent) return;
     const trimmedName = modalTeamName.trim();
     if (!trimmedName) {
@@ -591,76 +542,143 @@ export default function EventEnrollmentView({
       return;
     }
 
-    const newFreeTeam: SerializedEnrolledEvent = {
-      _id: `free-team-${freeTeamModalEvent._id}-${Date.now()}`,
-      event_id: freeTeamModalEvent._id,
-      event_title: freeTeamModalEvent.title,
-      participation_type: 'team',
-      team_name: trimmedName,
-      team_leader_name: userName,
-      team_leader_email: userEmail,
-      team_members: modalVerifiedMembers.map((m) => m.email),
-      team_member_details: modalVerifiedMembers,
-      event_details: freeTeamModalEvent,
-    };
+    setModalError(null);
+    setFreeEnrollingId(freeTeamModalEvent._id);
 
-    setTeamPaid((prev) => {
-      const updated = [...prev, newFreeTeam];
-      saveFreeEventsToStorage(individualPaid, updated);
-      return updated;
-    });
-
-    setFeedbackSuccess(`Squad "${trimmedName}" successfully enrolled in ${freeTeamModalEvent.title}!`);
-    closeFreeTeamModal();
-  };
-
-  const handleUnenrollFreeEvent = (event: SerializedEvent) => {
-    const isTeam = event.participants_type === 'team';
-    if (isTeam) {
-      setTeamPaid((prev) => {
-        const updated = prev.filter((e) => e.event_id !== event._id);
-        saveFreeEventsToStorage(individualPaid, updated);
-        return updated;
+    try {
+      const res = await fetch('/api/enrollement/enroll-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId: freeTeamModalEvent._id,
+          teamName: trimmedName,
+          teamEmails: modalVerifiedMembers.map((m) => m.email),
+        }),
       });
-    } else {
-      setIndividualPaid((prev) => {
-        const updated = prev.filter((e) => e.event_id !== event._id);
-        saveFreeEventsToStorage(updated, teamPaid);
-        return updated;
-      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setModalError(json?.message || 'Failed to enroll squad in this free event.');
+        return;
+      }
+
+      const enrolledDoc = json?.data;
+      const newFreeTeam: SerializedEnrolledEvent = {
+        _id: String(enrolledDoc?._id || `free-team-${freeTeamModalEvent._id}-${Date.now()}`),
+        event_id: freeTeamModalEvent._id,
+        event_title: freeTeamModalEvent.title,
+        participation_type: 'team',
+        team_name: trimmedName,
+        team_leader_name: userName,
+        team_leader_email: userEmail,
+        team_members: modalVerifiedMembers.map((m) => m.email),
+        team_member_details: modalVerifiedMembers,
+        event_details: freeTeamModalEvent,
+      };
+
+      setTeamPaid((prev) => [...prev.filter((e) => e.event_id !== freeTeamModalEvent._id), newFreeTeam]);
+      setFeedbackSuccess(`Squad "${trimmedName}" successfully enrolled in ${freeTeamModalEvent.title}!`);
+      closeFreeTeamModal();
+    } catch {
+      setModalError('Network error while enrolling team. Please try again.');
+    } finally {
+      setFreeEnrollingId(null);
     }
-    setFeedbackSuccess(`Unenrolled from ${event.title}`);
   };
 
-  const handleToggleFreeEnrollment = (event: SerializedEvent) => {
+  const handleUnenrollFreeEvent = async (event: SerializedEvent) => {
+    const isTeam = event.participants_type === 'team';
+    const enrolledItem = isTeam
+      ? teamPaid.find((e) => e.event_id === event._id)
+      : individualPaid.find((e) => e.event_id === event._id);
+
+    if (!enrolledItem) return;
+
+    setFreeEnrollingId(event._id);
+    setFeedbackError(null);
+
+    try {
+      const res = await fetch('/api/enrollement/enroll-event', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enrolledEventId: enrolledItem._id,
+          eventId: event._id,
+        }),
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setFeedbackError(json?.message || `Failed to unenroll from ${event.title}.`);
+        return;
+      }
+
+      if (isTeam) {
+        setTeamPaid((prev) => prev.filter((e) => e.event_id !== event._id));
+      } else {
+        setIndividualPaid((prev) => prev.filter((e) => e.event_id !== event._id));
+      }
+      setFeedbackSuccess(`Unenrolled from ${event.title}`);
+    } catch {
+      setFeedbackError(`Network error while unenrolling from ${event.title}.`);
+    } finally {
+      setFreeEnrollingId(null);
+    }
+  };
+
+  const handleToggleFreeEnrollment = async (event: SerializedEvent) => {
     const isTeam = event.participants_type === 'team';
     const isEnrolled = isTeam
       ? teamPaid.some((e) => e.event_id === event._id)
       : individualPaid.some((e) => e.event_id === event._id);
 
     if (isEnrolled) {
-      handleUnenrollFreeEvent(event);
+      await handleUnenrollFreeEvent(event);
       return;
     }
 
     if (isTeam) {
       openFreeTeamModal(event);
     } else {
-      // Individual Free Event: Instantly enroll & display in Selected & Enrolled Events
-      const newFreeInd: SerializedEnrolledEvent = {
-        _id: `free-ind-${event._id}-${Date.now()}`,
-        event_id: event._id,
-        event_title: event.title,
-        participation_type: 'individual',
-        event_details: event,
-      };
-      setIndividualPaid((prev) => {
-        const updated = [...prev, newFreeInd];
-        saveFreeEventsToStorage(updated, teamPaid);
-        return updated;
-      });
-      setSelectedIndividualIds((prev) => prev.filter((id) => id !== event._id));
-      setFeedbackSuccess(`Successfully enrolled in ${event.title}! Saved to your Enrolled Events.`);
+      // Individual Free Event: POST to /api/enrollement/enroll-event
+      setFreeEnrollingId(event._id);
+      setFeedbackError(null);
+
+      try {
+        const res = await fetch('/api/enrollement/enroll-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eventId: event._id,
+          }),
+        });
+
+        const json = await res.json().catch(() => null);
+
+        if (!res.ok) {
+          setFeedbackError(json?.message || `Failed to enroll in ${event.title}.`);
+          return;
+        }
+
+        const enrolledDoc = json?.data;
+        const newFreeInd: SerializedEnrolledEvent = {
+          _id: String(enrolledDoc?._id || `free-ind-${event._id}-${Date.now()}`),
+          event_id: event._id,
+          event_title: event.title,
+          participation_type: 'individual',
+          event_details: event,
+        };
+
+        setIndividualPaid((prev) => [...prev.filter((e) => e.event_id !== event._id), newFreeInd]);
+        setSelectedIndividualIds((prev) => prev.filter((id) => id !== event._id));
+        setFeedbackSuccess(`Successfully enrolled in ${event.title}!`);
+      } catch {
+        setFeedbackError(`Network error while enrolling in ${event.title}.`);
+      } finally {
+        setFreeEnrollingId(null);
+      }
     }
   };
 
@@ -897,8 +915,10 @@ export default function EventEnrollmentView({
       if (res.ok) {
         if (type === 'individual') {
           setPendingIndividual((prev) => prev.filter((e) => e._id !== enrolledEventId));
+          setIndividualPaid((prev) => prev.filter((e) => e._id !== enrolledEventId));
         } else {
           setPendingTeam((prev) => prev.filter((e) => e._id !== enrolledEventId));
+          setTeamPaid((prev) => prev.filter((e) => e._id !== enrolledEventId));
         }
         setFeedbackSuccess('Event reservation cancelled. Available again in catalogue.');
       } else {
@@ -1050,50 +1070,62 @@ export default function EventEnrollmentView({
     setSubmitting(true);
 
     try {
-      // 1. Process free events directly into enrolled state
+      // 1. Process staged free events via API
       if (stagedFreeIndividual.length > 0) {
-        const newFreeInd = stagedFreeIndividual.map((id) => {
-          const ev = eventsList.find((e) => e._id === id);
-          return {
-            _id: `free-ind-${id}-${Date.now()}`,
-            event_id: id,
-            event_title: ev?.title || 'Free Competition',
-            participation_type: 'individual' as const,
-            event_details: ev,
-          };
-        });
-        setIndividualPaid((prev) => {
-          const updated = [...prev, ...newFreeInd];
-          saveFreeEventsToStorage(updated, teamPaid);
-          return updated;
-        });
-        setSelectedIndividualIds((prev) => prev.filter((id) => !stagedFreeIndividual.includes(id)));
+        for (const id of stagedFreeIndividual) {
+          const res = await fetch('/api/enrollement/enroll-event', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ eventId: id }),
+          });
+          const json = await res.json().catch(() => null);
+          if (res.ok && json?.data) {
+            const ev = eventsList.find((e) => e._id === id);
+            const newFreeInd: SerializedEnrolledEvent = {
+              _id: String(json.data._id),
+              event_id: id,
+              event_title: ev?.title || 'Free Competition',
+              participation_type: 'individual',
+              event_details: ev,
+            };
+            setIndividualPaid((prev) => [...prev.filter((e) => e.event_id !== id), newFreeInd]);
+            setSelectedIndividualIds((prev) => prev.filter((sId) => sId !== id));
+          }
+        }
       }
 
       if (stagedFreeTeam.length > 0) {
-        const newFreeTeam = stagedFreeTeam.map((tItem) => {
-          const ev = eventsList.find((e) => e._id === tItem.eventId);
-          return {
-            _id: `free-team-${tItem.eventId}-${Date.now()}`,
-            event_id: tItem.eventId,
-            event_title: ev?.title || 'Free Team Event',
-            participation_type: 'team' as const,
-            team_name: tItem.teamName.trim(),
-            team_leader_name: userName,
-            team_leader_email: userEmail,
-            team_members: tItem.teamMembers,
-            team_member_details: tItem.verifiedDetails,
-            event_details: ev,
-          };
-        });
-        setTeamPaid((prev) => {
-          const updated = [...prev, ...newFreeTeam];
-          saveFreeEventsToStorage(individualPaid, updated);
-          return updated;
-        });
-        setSelectedTeamEvents((prev) =>
-          prev.filter((t) => !stagedFreeTeam.some((f) => f.eventId === t.eventId))
-        );
+        for (const tItem of stagedFreeTeam) {
+          const res = await fetch('/api/enrollement/enroll-event', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              eventId: tItem.eventId,
+              teamName: tItem.teamName.trim(),
+              teamEmails: tItem.teamMembers,
+            }),
+          });
+          const json = await res.json().catch(() => null);
+          if (res.ok && json?.data) {
+            const ev = eventsList.find((e) => e._id === tItem.eventId);
+            const newFreeTeam: SerializedEnrolledEvent = {
+              _id: String(json.data._id),
+              event_id: tItem.eventId,
+              event_title: ev?.title || 'Free Team Event',
+              participation_type: 'team',
+              team_name: tItem.teamName.trim(),
+              team_leader_name: userName,
+              team_leader_email: userEmail,
+              team_members: tItem.teamMembers,
+              team_member_details: tItem.verifiedDetails,
+              event_details: ev,
+            };
+            setTeamPaid((prev) => [...prev.filter((e) => e.event_id !== tItem.eventId), newFreeTeam]);
+            setSelectedTeamEvents((prev) =>
+              prev.filter((t) => t.eventId !== tItem.eventId)
+            );
+          }
+        }
       }
 
       // 2. If there are NO paid events to purchase, complete right away
@@ -1159,7 +1191,12 @@ export default function EventEnrollmentView({
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/registration/logout', { method: 'POST' });
+    } catch {
+      // ignore network errors if any
+    }
     document.cookie = 'nv-session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
     document.cookie = 'nv-session-temp=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
     window.location.href = '/register/check-email';
@@ -1420,10 +1457,21 @@ export default function EventEnrollmentView({
               </button>
               <button
                 type="button"
+                disabled={Boolean(freeEnrollingId)}
                 onClick={handleConfirmFreeTeamEnrollment}
-                className="py-2.5 px-4 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-black bg-emerald-400 hover:bg-emerald-300 shadow-[0_0_20px_rgba(52,211,153,0.35)] transition-all cursor-pointer"
+                className="py-2.5 px-4 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-black bg-emerald-400 hover:bg-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(52,211,153,0.35)] transition-all cursor-pointer flex items-center justify-center gap-2"
               >
-                Confirm & Enroll
+                {freeEnrollingId ? (
+                  <>
+                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                    </svg>
+                    <span>Enrolling...</span>
+                  </>
+                ) : (
+                  <span>Confirm &amp; Enroll</span>
+                )}
               </button>
             </div>
           </div>
@@ -1558,12 +1606,12 @@ export default function EventEnrollmentView({
         </div>
       )}
 
-      {/* 02 — Unified Paid Events Container (Side-by-Side Cards with Horizontal Scroll) */}
+      {/* 02 — Unified Purchased Events Container (Side-by-Side Cards with Horizontal Scroll) */}
       <section className="w-full flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-base sm:text-lg font-subheading font-medium uppercase tracking-wider text-zinc-200 flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_12px_rgba(52,211,153,0.8)]" />
-            Paid Events
+            Purchased Events
           </h2>
           <div className="flex items-center gap-3">
             {(canScrollLeftPaid || canScrollRightPaid) && (
@@ -1593,14 +1641,14 @@ export default function EventEnrollmentView({
               </div>
             )}
             <span className="text-xs font-mono text-emerald-400 font-medium px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-              {individualPaid.length + teamPaid.length} PAID
+              {totalPurchasedCount} PURCHASED
             </span>
           </div>
         </div>
 
-        {individualPaid.length === 0 && teamPaid.length === 0 ? (
+        {totalPurchasedCount === 0 ? (
           <div className="w-full p-6 sm:p-8 rounded-2xl border border-white/[0.08] bg-[#07090E] text-zinc-500 font-mono text-xs sm:text-sm text-center">
-            No paid events yet. Browse and add events below.
+            No purchased events yet. Browse and add events below.
           </div>
         ) : (
           <div className="relative group/paidscroll">
@@ -1609,8 +1657,8 @@ export default function EventEnrollmentView({
               onScroll={checkPaidScroll}
               className="flex flex-row items-stretch gap-3.5 overflow-x-auto scroll-smooth pb-3.5 pt-1 scrollbar-thin scrollbar-thumb-emerald-500/30 hover:scrollbar-thumb-emerald-500/60 scrollbar-track-white/[0.02]"
             >
-              {/* Paid Individual Events */}
-              {individualPaid.map((enrolled) => {
+              {/* Purchased Individual Events */}
+              {purchasedIndividualEvents.map((enrolled) => {
                 const details = enrolled.event_details;
                 return (
                   <div
@@ -1624,11 +1672,11 @@ export default function EventEnrollmentView({
                             INDIVIDUAL
                           </span>
                           <span className="text-[10px] font-mono px-1.5 py-0.5 rounded uppercase font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                            PAID
+                            PURCHASED
                           </span>
                         </div>
                         <span className="text-xs font-sans font-semibold text-emerald-400">
-                          {details?.entry_fee ? `₹${details.entry_fee}` : 'FREE'}
+                          {details?.entry_fee && details.entry_fee > 0 ? `₹${details.entry_fee}` : 'FREE'}
                         </span>
                       </div>
 
@@ -1657,8 +1705,8 @@ export default function EventEnrollmentView({
                 );
               })}
 
-              {/* Paid Team Events */}
-              {teamPaid.map((teamEvent) => {
+              {/* Purchased Team Events */}
+              {purchasedTeamEvents.map((teamEvent) => {
                 const details = teamEvent.event_details;
                 const membersCount =
                   (teamEvent.team_member_details?.length || teamEvent.team_members?.length || 0) + 1;
@@ -1675,11 +1723,11 @@ export default function EventEnrollmentView({
                             TEAM
                           </span>
                           <span className="text-[10px] font-mono px-1.5 py-0.5 rounded uppercase font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                            PAID
+                            PURCHASED
                           </span>
                         </div>
                         <span className="text-xs font-sans font-semibold text-emerald-400">
-                          {details?.entry_fee ? `₹${details.entry_fee}` : 'FREE'}
+                          {details?.entry_fee && details.entry_fee > 0 ? `₹${details.entry_fee}` : 'FREE'}
                         </span>
                       </div>
 
@@ -1689,6 +1737,9 @@ export default function EventEnrollmentView({
                         </h3>
                         <p className="text-xs font-mono text-zinc-300 truncate">
                           Team: <span className="text-white font-medium">{teamEvent.team_name || 'Squad'}</span>
+                        </p>
+                        <p className="text-[11px] font-mono text-zinc-400 truncate">
+                          Leader: <span className="text-zinc-200">{teamEvent.team_leader_email || userEmail}</span>
                         </p>
                       </div>
                     </div>
@@ -1844,7 +1895,13 @@ export default function EventEnrollmentView({
             <div className="overflow-hidden">
               <div className="p-4 sm:p-5 pt-3 border-t border-white/[0.06] flex flex-col gap-4 bg-white/[0.01]">
                 {/* Free Events List: Arranged in a single horizontal line with side scroll */}
-                <div className="relative group/scroll">
+                {freeEvents.length === 0 ? (
+                  <div className="w-full p-5 sm:p-6 rounded-xl border border-white/[0.06] bg-white/[0.02] text-zinc-400 font-mono text-xs text-center flex flex-col items-center justify-center gap-1.5">
+                    <span className="text-emerald-400 font-semibold uppercase tracking-wider">ALL FREE EVENTS ENROLLED</span>
+                    <span>You have enrolled in all available free events. You can view them in Purchased Events above.</span>
+                  </div>
+                ) : (
+                  <div className="relative group/scroll">
                   <div
                     ref={freeEventsScrollRef}
                     onScroll={checkFreeScroll}
@@ -1898,35 +1955,35 @@ export default function EventEnrollmentView({
                             </span>
 
                             {isAlreadyEnrolled ? (
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <span className="px-2.5 py-1 rounded-lg font-mono text-xs uppercase tracking-wider font-semibold border border-emerald-500/40 bg-emerald-500/15 text-emerald-400 flex items-center gap-1">
-                                  <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                  </svg>
-                                  ENROLLED ✓
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleUnenrollFreeEvent(ev)}
-                                  aria-label={`Unenroll from ${ev.title}`}
-                                  title="Unenroll from free event"
-                                  className="p-1 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                </button>
-                              </div>
+                              <span className="px-2.5 py-1 rounded-lg font-mono text-xs uppercase tracking-wider font-semibold border border-emerald-500/40 bg-emerald-500/15 text-emerald-400 flex items-center gap-1 shrink-0">
+                                <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                ENROLLED ✓
+                              </span>
                             ) : (
                               <button
                                 type="button"
+                                disabled={Boolean(freeEnrollingId)}
                                 onClick={() => handleToggleFreeEnrollment(ev)}
-                                className="px-3.5 py-1.5 rounded-lg font-mono text-xs uppercase tracking-wider font-semibold border border-emerald-500/60 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 hover:text-white shadow-[0_0_15px_rgba(16,185,129,0.2)] hover:shadow-[0_0_22px_rgba(16,185,129,0.4)] transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                                className="px-3.5 py-1.5 rounded-lg font-mono text-xs uppercase tracking-wider font-semibold border border-emerald-500/60 bg-emerald-500/20 hover:bg-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed text-emerald-300 hover:text-white shadow-[0_0_15px_rgba(16,185,129,0.2)] hover:shadow-[0_0_22px_rgba(16,185,129,0.4)] transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
                               >
-                                <span>ENROLL NOW</span>
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                                </svg>
+                                {freeEnrollingId === ev._id ? (
+                                  <>
+                                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                                    </svg>
+                                    <span>ENROLLING...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>ENROLL NOW</span>
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                    </svg>
+                                  </>
+                                )}
                               </button>
                             )}
                           </div>
@@ -1967,6 +2024,7 @@ export default function EventEnrollmentView({
                     </div>
                   )}
                 </div>
+              )}
               </div>
             </div>
           </div>
