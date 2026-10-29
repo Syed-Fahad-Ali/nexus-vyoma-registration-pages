@@ -13,7 +13,33 @@ import { TokenData } from "../enrollement/enroll-event/route";
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { eventId, title, isEntryTicket, price } = body;
+        const { eventId, title, isEntryTicket, price, isShowOnEntryPage, indexPackage } = body;
+
+        if (!eventId || !title || isEntryTicket === undefined ||
+            price === undefined || title.trim() === "" || price === 0 ||
+            isEntryTicket === null || isShowOnEntryPage === undefined ||
+            indexPackage === undefined) {
+            return NextResponse.json({
+                message: "Missing required fields",
+                data: null,
+                error: "Required fields are missing",
+                redirect: false,
+                redirectUrl: null
+            }, { status: 400 });
+        }
+
+        let eventIds: string[] = [];
+        if (eventId) {
+            eventIds = eventId.split(",").map((id: string) => id.trim()).filter((id: string) => id !== "");
+
+            return NextResponse.json({
+                message: "Multiple event IDs are not allowed",
+                data: eventIds,
+                error: "Multiple event IDs are not allowed",
+                redirect: false,
+                redirectUrl: null
+            }, { status: 200 });
+        }
 
         const cookieStore = await cookies();
         const userToken = cookieStore.get("nv-session")?.value;
@@ -82,9 +108,11 @@ export async function POST(request: NextRequest) {
 
         const newPackage = await Package.create({
             title,
-            eventId,
+            eventIds,
             isEntryTicket,
-            price
+            price,
+            isShowOnEntryPage,
+            indexPackage
         });
 
         if (!newPackage) {
