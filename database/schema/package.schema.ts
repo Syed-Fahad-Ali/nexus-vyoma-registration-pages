@@ -6,10 +6,10 @@ const packageSchema = new mongoose.Schema({
         required: true,
     },
     eventId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "Event",
-            required: true,
-        },
+        type: [mongoose.Schema.Types.ObjectId],
+        ref: "Event",
+        required: true,
+    },
     isEntryTicket: {
         type: Boolean,
         default: true,
