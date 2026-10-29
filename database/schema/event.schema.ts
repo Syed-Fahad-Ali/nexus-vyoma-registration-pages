@@ -35,7 +35,8 @@ const eventSchema = new mongoose.Schema({
     },
     participant_limit: {
         type: Number,
-        required: true
+        required: true,
+        default: 0
     },
     prize: {
         type: String,
@@ -72,7 +73,7 @@ const eventSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-}, { timestamps: true, overwriteModels: true });
+}, { timestamps: true });
 
 const Event = mongoose.models.Event || mongoose.model("Event", eventSchema);
 

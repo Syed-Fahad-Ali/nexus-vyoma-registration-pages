@@ -6,10 +6,10 @@ const packageSchema = new mongoose.Schema({
         required: true,
     },
     eventId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Event",
-        required: true,
-    },
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Event",
+            required: true,
+        },
     isEntryTicket: {
         type: Boolean,
         default: true,
@@ -18,7 +18,7 @@ const packageSchema = new mongoose.Schema({
         type: Number,
         required: true,
     }
-}, { timestamps: true, overwriteModels: true });
+}, { timestamps: true });
 
 const Package = mongoose.models.Package || mongoose.model("Package", packageSchema);
 
