@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
             price
         });
 
-        if(!newPackage) {
+        if (!newPackage) {
             return NextResponse.json({
                 message: "Failed to create package",
                 data: null,
@@ -111,3 +111,4 @@ export async function POST(request: NextRequest) {
         }, { status: 500 })
     }
 }
+
