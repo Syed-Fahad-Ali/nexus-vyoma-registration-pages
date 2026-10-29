@@ -6,9 +6,11 @@ import RegisterUser from "@/database/schema/register-user.schema";
 import Package from "@/database/schema/package.schema";
 import EnrolledIndividualEvent from "@/database/schema/enrolled-individual-event.schema";
 import Event from "@/database/schema/event.schema";
+import mongoose from "mongoose";
 
 import { verifyJWT } from "@/utilities/jwt";
 import { TokenData } from "../enrollement/enroll-event/route";
+import EnrolledTeamEvent from "@/database/schema/enrolled-team-event.schema";
 
 export async function POST(request: NextRequest) {
     try {
@@ -31,14 +33,6 @@ export async function POST(request: NextRequest) {
         let eventIds: string[] = [];
         if (eventId) {
             eventIds = eventId.split(",").map((id: string) => id.trim()).filter((id: string) => id !== "");
-
-            return NextResponse.json({
-                message: "Multiple event IDs are not allowed",
-                data: eventIds,
-                error: "Multiple event IDs are not allowed",
-                redirect: false,
-                redirectUrl: null
-            }, { status: 200 });
         }
 
         const cookieStore = await cookies();
@@ -198,37 +192,87 @@ export async function GET(request: NextRequest) {
 
         await Event;
 
-        const packages = await Package.find({}).populate("eventId");
+        const packages = await Package.find({}).populate("eventIds");
+
+        if (!packages || packages.length === 0) {
+            return NextResponse.json({
+                message: "No packages found",
+                data: null,
+                error: "No packages available",
+                redirect: false,
+                redirectUrl: null
+            }, { status: 404 });
+        }
 
         let response: any[] = [];
         for (let i = 0; i < packages.length; i++) {
-            const packageEvent = packages[i];
-            const event = packageEvent.eventId;
-            const eventParticipants = event.participant_limit;
-
-            const count = await EnrolledIndividualEvent.countDocuments({
-                event_id: event._id,
-                $or: [
-                    { isPaid: true },
-                    { isPaid: false, reservation_time: { $gt: new Date() } }
-                ]
-            });
-
             let isSoldOut = false;
             let fewRemaining = false;
-            if (eventParticipants <= count) {
-                isSoldOut = true;
-            }
-            else if (eventParticipants - count <= 10) {
-                fewRemaining = true;
-                isSoldOut = false;
-            } else {
-                isSoldOut = false;
-                fewRemaining = false;
+            let eventList: any[] = [];
+
+            const packageEvent = packages[i];
+            const events = packageEvent.eventIds;
+
+            for (const event of events) {
+                const participantLimit = event.participant_limit;
+                const participantType = event.participants_type;
+
+                if (participantType === "individual") {
+                    const count = await EnrolledIndividualEvent.countDocuments({
+                        event_id: event._id,
+                        $or: [
+                            { isPaid: true },
+                            { isPaid: false, reservation_time: { $gt: new Date() } }
+                        ]
+                    });
+
+                    if (participantLimit <= count) {
+                        fewRemaining = true;
+                        isSoldOut = true;
+                    }
+                    else if (participantLimit - count <= 10) {
+                        fewRemaining = true;
+                        isSoldOut = false;
+                    } else {
+                        isSoldOut = false;
+                        fewRemaining = false;
+                    }
+
+                    eventList.push({
+                        ...event.toObject(),
+                        isSoldOut,
+                        fewRemaining
+                    });
+                } else if (participantType === "team") {
+                    const count = await EnrolledTeamEvent.countDocuments({
+                        event_id: event._id,
+                        $or: [
+                            { isPaid: true },
+                            { isPaid: false, reservation_time: { $gt: new Date() } }
+                        ]
+                    });
+
+                    if (participantLimit <= count) {
+                        isSoldOut = true;
+                    }
+                    else if (participantLimit - count <= 10) {
+                        fewRemaining = true;
+                        isSoldOut = false;
+                    } else {
+                        isSoldOut = false;
+                        fewRemaining = false;
+                    }
+
+                    eventList.push({
+                        ...event.toObject(),
+                        isSoldOut,
+                        fewRemaining
+                    });
+                }
             }
 
             response.push({
-                package: { ...packageEvent.toObject(), isSoldOut, fewRemaining },
+                package: { ...packageEvent.toObject(), events: eventList }
             });
         }
 
