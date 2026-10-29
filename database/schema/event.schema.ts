@@ -73,7 +73,7 @@ const eventSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-}, { timestamps: true });
+}, { timestamps: true, overwriteModels: true });
 
 const Event = mongoose.models.Event || mongoose.model("Event", eventSchema);
 

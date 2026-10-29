@@ -26,7 +26,7 @@ const packageSchema = new mongoose.Schema({
         type: Number,
         default: 0,
     }
-}, { timestamps: true });
+}, { timestamps: true, overwriteModels: true });
 
 const Package = mongoose.models.Package || mongoose.model("Package", packageSchema);
 
