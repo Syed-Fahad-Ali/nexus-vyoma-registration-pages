@@ -127,5 +127,4 @@ export async function POST(request: NextRequest) {
             redirectUrl: null
         }, { status: 500 })
     }
-
 }
