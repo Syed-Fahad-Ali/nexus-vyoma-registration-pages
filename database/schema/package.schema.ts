@@ -5,7 +5,7 @@ const packageSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
-    eventId: {
+    eventIds: {
         type: [mongoose.Schema.Types.ObjectId],
         ref: "Event",
         required: true,
@@ -17,6 +17,14 @@ const packageSchema = new mongoose.Schema({
     price: {
         type: Number,
         required: true,
+    },
+    isShowOnEntryPage: {
+        type: Boolean,
+        default: false,
+    },
+    indexPackage: {
+        type: Number,
+        default: 0,
     }
 }, { timestamps: true });
 
