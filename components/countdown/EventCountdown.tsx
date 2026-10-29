@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Calendar, MapPin, Ticket, Flame } from 'lucide-react';
 import { Spark } from '@/components/brand/Spark';
 import VaporCountdown from '@/components/ui/countdown-vapor-digits';
+import nexusWordmarkTexture from '@/public/brand/nexus-wordmark-texture.png';
 
 // Target date: October 31, 2026, 18:00:00 IST (UTC+05:30)
 const TARGET_TIME = new Date('2026-10-31T18:00:00+05:30').getTime();
@@ -24,11 +25,10 @@ export default function EventCountdown() {
         {/* Dominant Artwork Core */}
         <div className="w-full max-w-md sm:max-w-xl md:max-w-2xl lg:max-w-3xl flex items-center justify-center">
           <Image
-            src="/brand/nexus-wordmark-texture.png"
+            src={nexusWordmarkTexture}
             alt="Nexus Vyoma"
-            width={1024}
-            height={341}
             priority
+            unoptimized
             className="w-full h-auto object-contain select-none filter drop-shadow-[0_4px_25px_rgba(0,0,0,0.85)]"
           />
         </div>

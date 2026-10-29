@@ -43,6 +43,13 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Newest first.
 
+### 2026-10-29 — Fixed Wordmark Image Resolution in Production Deployments
+
+**Done**
+- **Static Asset Bundling**: Replaced raw string path `/brand/nexus-wordmark-texture.png` with a static import (`import nexusWordmarkTexture from '@/public/brand/nexus-wordmark-texture.png'`) in `components/countdown/EventCountdown.tsx`. This causes Next.js to fingerprint and bundle the image directly into `_next/static/media/` at compile time, guaranteeing the file exists in deployed CDN assets.
+- **Added `unoptimized` Flag**: Configured `unoptimized` on the hero `<Image>` component, bypassing the serverless `_next/image` proxy which can fail on internal fetches in preview/production deployments, ensuring instant 200 OK delivery.
+- **Verification**: Verified zero TypeScript errors with `npx tsc --noEmit -p tsconfig.json`.
+
 ### 2026-10-29 — Fixed Countdown Numeral Vertical Cropping and Slot Alignment
 
 **Done**
