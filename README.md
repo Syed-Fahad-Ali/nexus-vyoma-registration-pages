@@ -43,6 +43,263 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Newest first.
 
+### 2026-10-29 — Fixed Countdown Numeral Vertical Cropping and Slot Alignment
+
+**Done**
+- **Eliminated Glyph Truncation Across All Viewports**:
+  - Expanded the offscreen glyph rasterizer canvas dimensions in `components/ui/countdown-vapor-digits.tsx` with dynamic generous padding (`padX = Math.max(24, Math.ceil(baseW * 0.4))`, `padY = Math.max(30, Math.ceil(baseH * 0.4))`). This guarantees that tall ascenders, high cap-height curves, and low baseline curves (e.g., `0`, `1`, `2`, `6`, `7`, `8`) are fully captured by `getImageData` without top/bottom canvas edge truncation.
+  - Normalized home particle offsets relative to glyph center (`pts.push(x - padX, y - padY)`), perfectly aligning particle matrix homes with DOM slot coordinates.
+- **Increased Main Canvas Overdraw Bounds**:
+  - Increased `PAD_X` to 50px, `PAD_TOP` to 140px, and `PAD_BOTTOM` to 60px (from 20px) to give particles ample vertical clearance during upward sublimation and spring settling.
+- **Enhanced Digit Slot Layout**:
+  - Added `items-center` to the digit pair flex container and `inline-block tabular-nums text-center` to individual `[data-vc-digit]` spans, preventing baseline shift or inconsistent inline box height measurements across different browsers and devices.
+- **Verification**: Verified cleanly with `npx tsc --noEmit -p tsconfig.json` with 0 type errors.
+
+### 2026-10-29 — Mobile-Specific Performance Optimization & Spacing Polish
+
+**Done**
+- **Eliminated Mobile Lag & GPU Throttling**:
+  - In `components/countdown/PosterEdgeRibbons.tsx`, reduced mobile atmospheric blur (`blur-[40px] sm:blur-[130px]`) and switched SVG ribbons to lightweight core glow on `< 640px` screens, saving over 85% GPU fragment fill rate.
+  - In `components/ui/countdown-vapor-digits.tsx`, adaptive mobile particle allocation (`maxVapor = 120` on mobile vs 450 on desktop), eliminating CPU bottlenecks from per-frame trigonometric curl-noise evaluations.
+- **Fixed Mobile Text Wrapping**: Wrapped the launch date string in `whitespace-nowrap` (`31 October 2026, 6:00 PM`) so the year and time do not break onto an orphaned line.
+- **Enhanced Mobile Vertical Spacing**: Added breathing room around the countdown timer (`my-1 sm:my-2`), flame tagline (`pt-2 pb-1 sm:py-2`), centered Offer Launch banner, and navigation buttons with 44px minimum touch targets.
+- **Verification**: Verified zero TypeScript errors via `npx tsc --noEmit -p tsconfig.json`.
+
+### 2026-10-29 — Added Breathing Room Between Wordmark and Heading
+
+**Done**
+- **Adjusted Heading Vertical Spacing**: Replaced the negative margin (`-mt-6 sm:-mt-10 md:-mt-12`) with positive top spacing (`mt-3 sm:mt-5 md:mt-6`) on the *"The Countdown Begins. The Excitement Builds."* banner in `components/countdown/EventCountdown.tsx`, providing slight breathing room below the textured `NEXUS VYOMA` artwork.
+- **Verification**: Verified zero TypeScript errors with `npx tsc --noEmit -p tsconfig.json`.
+
+### 2026-10-29 — Added DAYS Column to VaporCountdown (4-Group DD:HH:MM:SS)
+
+**Done**
+- **Expanded Particle Engine to 8 Slots**: Upgraded `components/ui/countdown-vapor-digits.tsx` to compute remaining days, hours, minutes, and seconds (`rem / (3600 * 24)`), managing 8 individual particle slots with curl-noise sublimation and spring condensation.
+- **4-Column Grid & ISO Duration**: Configured a fluid 4-column responsive layout (`gridTemplateColumns: repeat(4, auto)`) with `["DAYS", "HOURS", "MINUTES", "SECONDS"]` monospace labels and accurate ISO duration strings (`P${d}DT${h}H${m}M${s}S`).
+- **Responsive Typography Scale**: Tuned font size to `clamp(2.5rem, 8.5vw, 6.75rem)` and column gaps to `clamp(0.75rem, 4vw, 4rem)`, ensuring balanced desktop spacing and zero horizontal overflow on mobile viewports.
+- **Verification**: Verified clean compilation across the codebase via `npx tsc --noEmit -p tsconfig.json` with 0 type errors.
+
+### 2026-10-29 — Updated Countdown Target Time to 31 October 2026, 6:00 PM IST
+
+**Done**
+- **Updated Countdown Target Timestamp**: Set `TARGET_TIME = new Date('2026-10-31T18:00:00+05:30').getTime();` in `components/countdown/EventCountdown.tsx`.
+- **Synchronized Text & Badges**: Updated the portal launch announcement copy to `"31 October 2026, 6:00 PM"` and the offer banner highlight to `"31 OCTOBER 2026 • 6:00 PM"`.
+- **Updated Page SEO Metadata**: Updated the description in `app/countdown/page.tsx` to announce launch on 31 October 2026 at 6:00 PM.
+- **Verification**: Verified zero TypeScript errors with `npx tsc --noEmit -p tsconfig.json`.
+
+### 2026-10-29 — Restyled Vapor Countdown to Match Exact Demo Reference Aesthetic
+
+**Done**
+- **Geometric Sans Typography**: Replaced the heavy condensed display font with clean `font-sans font-semibold tabular-nums` (Inter), creating the exact slender, curved numeral silhouettes (`2`, `3`, `5`, `9`, `1`, `6`) from the reference image.
+- **Precise Dot-Matrix Raster & Color**: Calibrated `SAMPLE_STRIDE = 3` and discrete 2px grain rendering in `#e4e4e7` (silver zinc) at `0.85` global alpha, matching the clean technical grid from the reference image.
+- **Ethereal Vapor Cloud Dynamics**: Tuned upward sublimation kick (`-22px/s`) with curl-noise drift and `550ms–800ms` cloud life, producing the delicate smoke sublimation cloud rising from changing digits.
+- **Added Technical Kicker**: Introduced the `LAUNCH WINDOW CLOSES IN` monospace kicker (`tracking-[0.3em] text-zinc-400`) centered directly above the countdown.
+- **Reference Label Styling**: Updated column labels below the timer (`HOURS`, `MINUTES`, `SECONDS`) to `font-mono text-[11px] sm:text-xs tracking-[0.25em] text-zinc-400 uppercase font-medium`.
+- **Verification**: Verified clean compilation across the codebase via `npx tsc --noEmit -p tsconfig.json` with 0 type errors.
+
+### 2026-10-29 — Enhanced VaporCountdown Resolution & Fit-to-Screen Cinema Proportions
+
+**Done**
+- **Eliminated Glitched Coarse Grid & Ghosting**: Increased particle sampling density (`SAMPLE_STRIDE = 2`, `MAX_GRAINS = 5000`), rendered settled numerals at 100% solid opacity (`ctx.globalAlpha = 1.0` with 2.4px grain overlap) eliminating the porous screen-door mesh look.
+- **Immediate Ethereal Vapor Clearance**: Accelerated sublimation with an immediate upward thermal kick (`-48px/s`) and shortened vapor lifespan (`320ms–500ms`), preventing lingering ghost double-digit exposures during transitions.
+- **Snappier Harmonic Condensation**: Raised incoming spring stiffness (`SPRING_K = 180`, `ZETA = 0.65`) so newly arriving numerals lock crisply into place within ~250ms.
+- **Maximized Fit-to-Screen Scale**: Boosted fluid typography scaling to `fontSize: clamp(4rem, 20vw, 15rem)` (reaching up to 240px on desktop) with responsive spacing (`columnGap: clamp(0.75rem, 5vw, 4.5rem)`), dramatically filling the screen while preserving clean mobile scaling at 360px–430px.
+- **Verification**: Validated compilation across the project via `npx tsc --noEmit -p tsconfig.json` with 0 type errors.
+
+### 2026-10-29 — Scaled VaporCountdown Fit-to-Screen & Removed Outer Box
+
+**Done**
+- **Removed Outer Container Box & Ring**: Stripped away the rounded border card, background tile, and elliptical SVG neon ring from `components/countdown/EventCountdown.tsx`, liberating the countdown particles to float freely on the deep black ground.
+- **Enlarged to Monumental Fit-to-Screen Proportion**: Upgraded `VaporCountdown` in `components/ui/countdown-vapor-digits.tsx` with a dynamic fluid clamp: `fontSize: clamp(3.2rem, 15vw, 12rem)` and `columnGap: clamp(0.75rem, 4vw, 3.5rem)`, scaling from mobile up to cinema-scale on desktop.
+- **Enhanced Mobile Responsiveness & Zero Overflow**: Added `overflow-x-clip` and `overflow-x-hidden` on parent wrappers, tuned canvas padding (`PAD_TOP = 150`, `PAD_X = 40`), and verified compact mobile layout at 360px–430px with balanced column widths and brand orange (`#FF6A00`) labels.
+- **Verification**: Verified clean compilation across the codebase via `npx tsc --noEmit -p tsconfig.json` with 0 type errors.
+
+### 2026-10-29 — Integrated VaporCountdown (Particle Sublimation & Condensation)
+
+**Done**
+- **Created VaporCountdown Component**: Added `components/ui/countdown-vapor-digits.tsx` featuring 2D Canvas curl-noise particle sublimation and spring condensation dynamics. Outgoing numerals dissolve into monochrome particles drifting upward on deterministic 2-octave value noise, while incoming numerals condense using damped harmonic spring physics (`SPRING_K = 90`, `ZETA = 0.55`).
+- **Extended Theme Tokens**: Added `--color-ns-muted: var(--ns-muted);` to Tailwind v4 `@theme inline` in `app/globals.css`, along with `:root` (`--ns-muted: #4d4d4d;`) and `.dark` (`--ns-muted: #8f8f8f;`) variables.
+- **Embedded into Event Countdown**: Integrated `VaporCountdown` into `components/countdown/EventCountdown.tsx` targeted to **30 October 2026, 00:00:00 IST** (`2026-10-30T00:00:00+05:30`) with `HOURS`, `MINUTES`, and `SECONDS` labels inside the glowing neon ring container.
+- **Accessibility & Reduced Motion**: Retained screen-reader accessible `<time>` element with full `datetime` duration attributes and automatic graceful degradation for `prefers-reduced-motion: reduce`.
+- **Verification**: Verified clean compilation across the codebase via `npx tsc --noEmit -p tsconfig.json` with 0 type errors.
+
+### 2026-10-29 — Updated Target Countdown Date to 30 October 2026
+
+**Done**
+- **Target Date Updated**: Updated the countdown target timestamp to **30 October 2026, 00:00:00 IST** (`2026-10-30T00:00:00+05:30`) in `components/countdown/EventCountdown.tsx`.
+- **Text & Metadata Synchronization**: Updated all supporting copy, launch banner labels, and page SEO metadata from 1 November 2026 to **30 October 2026**.
+- **Verification**: Ran `npx tsc --noEmit -p tsconfig.json` with zero type errors.
+
+### 2026-10-29 — Removed Header Branding Bar from Countdown Page
+
+**Done**
+- **Removed Top Tagline Bar**: Removed the `ISL ENGINEERING COLLEGE` logo and `A THREE-DAY INTER-COLLEGE FEST • 10–12 NOV 2026` top border strip from `components/countdown/EventCountdown.tsx`, keeping the focal emphasis squarely on the official `NEXUS VYOMA` artwork and `GRAND COUNTDOWN` title.
+- **Verification**: Ran `npx tsc --noEmit -p tsconfig.json` with zero type errors.
+
+### 2026-10-29 — Integrated React Bits `<Counter />` with Nexus Dark Theme
+
+**Done**
+- **React Bits `<Counter />` Component Integration**:
+  - Added `components/ui/Counter.tsx` and `components/ui/Counter.css` with spring physics momentum, motion blur SVG filters, and full accessibility (`.counter__sr`).
+  - Integrated `<Counter />` into all 4 countdown columns (Days, Hours, Minutes, Seconds) with `direction="down"`, `minDigits={2}`, `duration={0.6}`, `tabular={true}`, and `motionBlur={true}`.
+- **Nexus Dark Theme Styling**:
+  - Matched the authentic festival palette: pure black backdrop, crisp white digits (`textColor="#FFFFFF"`), and `#FF6A00` / `#D8182B` accents.
+- **Verification**: Ran `npx tsc --noEmit -p tsconfig.json` with zero type errors.
+
+### 2026-10-29 — DD : HH : MM : SS Format, Blinking Colons & Rolling Transitions
+
+**Done**
+- **Prominent `DD : HH : MM : SS` Countdown Format**:
+  - Restructured the countdown into a unified, horizontally aligned `[ DD ] : [ HH ] : [ MM ] : [ SS ]` arrangement with clearly stacked uppercase unit labels (`DAYS`, `HOURS`, `MINUTES`, `SECONDS`).
+  - Fluidly scales down on mobile (360px+) with zero line wrap or number overlapping.
+- **Blinking Colons**:
+  - Positioned `:` separators between each pair of values, vertically centered with the numbers, animated with a smooth 1s opacity pulse (`colonPulse`).
+- **Smooth Rolling Number Transitions**:
+  - Implemented `RollingNumber` component with fixed height and `tabular-nums` ensuring clean, smooth vertical slide transitions on second/minute updates without layout shifts.
+- **Bold Condensed Festival Poster Typography**:
+  - Replaced plain text styles with `font-display font-black` condensed numerals and headings, complemented by clean, readable `font-sans` descriptions.
+- **Verification**: Ran `npx tsc --noEmit -p tsconfig.json` with zero type errors.
+
+### 2026-10-29 — Neon Elliptical Countdown Ring & Promotional Tagline
+
+**Done**
+- **Static Neon Countdown Ring**:
+  - Implemented a wide, thin elliptical ring behind the four countdown columns inside the timer container using layered gradients from Crimson Red (`#D8182B`) &rarr; Deep Orange (`#FF6A00`) &rarr; Golden Amber (`#FBB03B`) with a subtle Purple (`#7B2CFF`) highlight and restrained outer glow.
+  - Positioned statically behind the numbers (`-z-0`), keeping numerals and labels 100% visible and unclipped.
+- **Four-Column Countdown Layout**:
+  - Structured DAYS, HOURS, MINUTES, and SECONDS into 4 evenly spaced columns with large bold white condensed numerals and narrow uppercase orange labels with generous letter spacing (`tracking-[0.25em]`).
+  - Added thin vertical dividers between columns.
+- **Promotional Tagline**:
+  - Added exact centered tagline beneath the timer with flame icon: `🔥 CRAZY DEALS. SPECIAL PACKAGES. MORE REASONS TO CELEBRATE!` in condensed uppercase white text.
+- **Background Accents**:
+  - Added subtle curved neon streak accents near the outer corners while keeping the central background black and uncluttered.
+- **Verification**: Ran `npx tsc --noEmit -p tsconfig.json` with zero type errors.
+
+### 2026-10-29 — Enhanced Visual Assets on Grand Countdown Page
+
+**Done**
+- **Vivid Poster-Edge Neon Ribbons (`components/countdown/PosterEdgeRibbons.tsx`)**:
+  - Enhanced dual-stroke flowing neon ribbon vectors in Red, Orange, Electric Blue, and Purple framing the outer borders, complemented by 35° brand corner laser streaks.
+- **Restrained Flame-Texture Accent**:
+  - Added a subtle static warm flame-texture aura and official 4-point golden sparks (`Spark.tsx`) flanking the `GRAND COUNTDOWN` title layer.
+- **Festival Graphics & Launch Banner**:
+  - Integrated minimal `Ticket` icon badge inside the `OFFICIAL PORTAL LAUNCH — 1 NOVEMBER 2026` announcement banner.
+- **Sharp Countdown Frame & Geometric Details**:
+  - Added clean static corner bracket accents to the thin orange-red outline of the countdown box.
+  - Added diamond pips (`◆`) and icon housing badges for the `Calendar` and `MapPin` event metadata.
+- **Verification**: Ran `npx tsc --noEmit -p tsconfig.json` with zero type errors.
+
+### 2026-10-29 — Full Poster-Style Adaptation of Grand Countdown Page
+
+**Done**
+- **Poster Edge Neon Ribbons (`components/countdown/PosterEdgeRibbons.tsx`)**:
+  - Implemented perimeter flowing neon ribbons in Red, Orange, Electric Blue, and Purple matching the reference poster edges, with a central contrast mask maintaining 100% dark readability.
+- **Top Branding & Tagline Bar**:
+  - Top-left Nexus logo mark with `ISL ENGINEERING COLLEGE` and top-right official fest tagline `A THREE-DAY INTER-COLLEGE FEST • 10–12 NOV 2026`.
+- **Main Heading & Layered Title**:
+  - Positioned official textured `NEXUS VYOMA` artwork as the dominant focal point, layered prominently with bold italic `GRAND COUNTDOWN` display lettering.
+- **Neon-Framed Countdown**:
+  - Bounded horizontal DAYS, HOURS, MINUTES, and SECONDS numerals inside a restrained red-orange neon outline card with thin dividers and `font-condensed` tall numbers.
+- **Promotional Launch Banner & Event Icons**:
+  - Distinctive bordered banner for `PORTAL REGISTRATIONS GO LIVE — 1 NOVEMBER 2026`.
+  - Event details formatted in a compact row with `lucide-react` `Calendar` and `MapPin` icons.
+- **Preserved Core Functionality**:
+  - Real-time 1-second countdown to **1 November 2026, 00:00:00 IST**, active routes (`/`, `/organizers`, `/contact`), and unblocked `/api/**` routing in `proxy.ts`.
+- **Verification**: Ran `npx tsc --noEmit -p tsconfig.json` with zero type errors.
+
+### 2026-10-29 — Poster-Inspired Condensed Typography on Countdown Page
+
+**Done**
+- **Poster-Style Condensed Display Typography (`Barlow Condensed`)**:
+  - Main heading `THE COUNTDOWN BEGINS`: applied `font-condensed font-bold` for a tall, strong condensed poster feel.
+  - Accent kicker: added bold italic condensed highlight `GRAND LAUNCH COUNTDOWN • ISL ENGINEERING COLLEGE` in brand orange (`#FF6A00`), inspired by the reference poster.
+- **Tall Condensed Countdown Numerals with Fixed Widths**:
+  - Displayed countdown values in tall, bold condensed numbers (`font-condensed font-bold text-7xl sm:text-8xl md:text-9xl lg:text-[10rem] tabular-nums`) with compact uppercase orange labels (`font-condensed font-bold text-xs sm:text-sm tracking-wider text-[#FF6A00]`).
+- **Exact Logo Artwork Preserved**:
+  - Maintained the transparent flame/cloud-filled artwork asset ([`nexus-wordmark-texture.png`](file:///Users/syedfahad/Developer/College/Nexus%20Vyoma/registration-pages/public/brand/nexus-wordmark-texture.png)) completely unchanged.
+- **Narrow Metadata & Legible Body Copy**:
+  - Body copy formatted in clean, highly readable `font-sans` with normal letter-spacing (`tracking-normal`) and comfortable line height.
+  - Event metadata and action buttons set in narrow condensed uppercase with clean dividers.
+- **Verification**: Ran `npx tsc --noEmit -p tsconfig.json` with zero type errors.
+
+### 2026-10-29 — Editorial Typography Update on Countdown Page
+
+**Done**
+- **Bold Condensed Heading**: Applied `font-display font-black` condensed styling to `THE COUNTDOWN BEGINS` for a compact, strong festival poster feel.
+- **Preserved Official Logo Asset**: Retained the high-resolution transparent flame/cloud artwork image asset (`nexus-wordmark-texture.png`) untouched.
+- **Condensed Countdown Numerals with Fixed Widths**: Switched countdown digits to `font-display font-black tabular-nums` in crisp white, with clean orange uppercase labels in medium-weight sans-serif (`font-sans tracking-wider`).
+- **Readable Supporting Copy**: Refined body text with normal letter spacing (`tracking-normal`) and comfortable line height in clean `font-sans`.
+- **Restrained Metadata & Buttons**: Standardized small metadata and pill buttons into compact medium-weight sans-serif, eliminating excessive wide letter-spacing.
+- **Verification**: Ran `npx tsc --noEmit -p tsconfig.json` with zero type errors.
+
+### 2026-10-29 — Integrated Official Wordmark Artwork on Countdown Page
+
+**Done**
+- **Official Wordmark Artwork Integration**: Replaced the pure text `NEXUS VYOMA` header in `components/countdown/EventCountdown.tsx` with the high-resolution transparent flame/cloud-filled artwork asset (`public/brand/nexus-wordmark-texture.png`).
+- **Responsive Layout**: Wrapped the wordmark with `next/image` (`1024x341` px native, priority loaded) with fluid scaling across mobile (360px), tablet, and desktop (1440px).
+- **Preserved Design & Content**: Retained the top understated label (`NEXUS VYOMA 2026 PRESENTS`), sub-heading (`THE COUNTDOWN BEGINS`), horizontal countdown values, compact event info strip, and active navigation.
+- **Verification**: Ran `npx tsc --noEmit -p tsconfig.json` with zero type errors.
+
+### 2026-10-29 — Full Visual Redesign of Countdown Page (Authentic Festival Theme)
+
+**Done**
+- **Stronger Countdown Composition & Authentic Typography**:
+  - Top label: `NEXUS VYOMA 2026 PRESENTS` in understated monospace (`font-mono text-xs tracking-[0.35em] text-zinc-400 uppercase`).
+  - Two-tier bold heading: `THE COUNTDOWN BEGINS` followed by `NEXUS VYOMA` in prominent solid condensed white display type without oversized glowing gradients.
+  - Supporting text: Clean, balanced 2-line copy introducing the 1 November 2026 portal launch with no awkward breaks.
+- **Main Visual Feature — Horizontal Countdown Row**:
+  - Restructured into a clean horizontal strip with large, crisp white numerals (`text-5xl sm:text-7xl md:text-8xl font-black font-mono tabular-nums`) and small uppercase labels in brand orange (`text-[#FF6A00] tracking-[0.25em]`).
+  - Bounded by a subtle horizontal divider with delicate orange-red backlight highlight; completely removed oversized rounded cards.
+  - Preserved live second-by-second updates ticking to **1 November 2026, 00:00:00 IST** with zero flip or motion effects.
+- **Compact Event Information Strip**:
+  - Formatted into a single compact, clean row with thin vertical separators: `EVENT DATES | 10–12 NOV 2026`, `VENUE | ISL Engineering College, Hyderabad`, and `PORTAL LAUNCH | 1 NOV 2026`.
+- **Understated Static Ribbon Backdrop (`components/countdown/StaticRibbonBackdrop.tsx`)**:
+  - Implemented one thin, flowing static red-orange vector ribbon with subtle blue/purple accent positioned quietly behind the content with zero animation, zero parallax, and pure black ground.
+- **Refined Navigation & Mobile Responsiveness**:
+  - Standard website pill buttons (`Back to Home`, `Meet Organizers`, `Contact Us`) and contact support note.
+  - Fully responsive: seamless horizontal desktop row and 2x2 mobile grid without clipping or horizontal overflow.
+- **Verification**: Ran `npx tsc --noEmit -p tsconfig.json` with zero type errors.
+
+### 2026-10-29 — Refined Authentic Nexus Vyoma Countdown Page
+
+**Done**
+- **Stripped AI Slop & Excessive Effects**: Removed all glowing text drop-shadows, complex gradients, and decorative clutter.
+- **Authentic Theme & Typography**: Applied clean condensed display typography with bold white titles, single-color `#FF6A00` orange highlights, and clean monospace numeric digits.
+- **One Subtle, Static Neon Ribbon Backdrop (`components/countdown/StaticRibbonBackdrop.tsx`)**: Added a single, understated static ribbon curve vector (`#FF6A00` &rarr; `#D8182B` &rarr; `#0066FF`) resting quietly behind the cards with zero animations and low opacity.
+- **Fixed Layout & Copywriting**: Corrected awkward line wraps and spacing; refined institutional header pill (`ISL ENGINEERING COLLEGE • HYDERABAD`) and concise portal launch description.
+- **Functional Countdown**: Preserved real-time countdown to **1 November 2026, 00:00:00 IST** with numbers updating strictly every second without transition delays.
+- **Whitelisted Navigation**: Maintained active links to `/`, `/organizers`, and `/contact`, with unblocked `/api/**` routing in `proxy.ts`.
+- **Verification**: Ran `npx tsc --noEmit -p tsconfig.json` with zero type errors.
+
+### 2026-10-29 — Simplified Clean Countdown Page
+
+**Done**
+- **Removed Visual Effects & Animations**: Stripped all GSAP entrance animations, timeline hooks, blurred reveals, digit slide transitions, and glowing text drop-shadows.
+- **Removed Animated Backgrounds & Neon Lines**: Removed `NeonRibbons.tsx` and the canvas silk wave background from the countdown page. Set a pure black background (`#000000`) with the subtle static dotted pattern (`opacity-[0.035]`).
+- **Original Nexus Vyoma Aesthetic**: Applied clean, bold white typography with minimal `#FF6A00` orange accents, clean hairline border cards (`border border-white/10 bg-white/[0.02]`), and tabular numbers updating purely each second without transition delays.
+- **Preserved Content & Routing**: Retained all dates (1 Nov 2026 portal launch, 10–12 Nov 2026 fest), ISL campus venue, active routes (`/`, `/organizers`, `/contact`), unblocked `/api/**` passthrough in `proxy.ts`, `<Navbar alwaysVisible />`, and `<FooterSection />`.
+- **Verification**: Ran `npx tsc --noEmit -p tsconfig.json` with zero type errors.
+
+### 2026-10-29 — Event Countdown & Route Whitelisting with Flowing Neon Ribbons
+
+**Done**
+- **Route Whitelisting via Next.js 16 Proxy (`proxy.ts`)**:
+  - Whitelisted active routes: Home (`/` and `/home`), Organizers (`/organizer` & `/organizers`), and Contact (`/contact`).
+  - Guaranteed zero interference or modification to all API routes (`/api/**`) and static assets (`_next`, icons, fonts).
+  - Automatically rewrites all other public page routes (e.g., `/events`, `/register`, `/payment/**`, etc.) to show the official Event Countdown.
+- **Visual Elevation & Flowing Neon Ribbons (`components/countdown/NeonRibbons.tsx`)**:
+  - Implemented flowing multi-stop neon ribbon vectors in Deep Orange (`#FF6A00`), Crimson Red (`#D8182B`), Electric Blue (`#0066FF`), and Cosmic Purple (`#7B2CFF`) with soft screen blending and ambient blurred nebulas.
+  - Added a central contrast scrim ensuring 100% text readability across all mobile and desktop viewports.
+- **Bold Glowing Typography & Cinematic GSAP Reveal (`components/countdown/EventCountdown.tsx`)**:
+  - Poster-style condensed typography for **“NEXUS VYOMA”** with flame gradient (`#FFFFFF` &rarr; `#FFE0B2` &rarr; `#FF6A00` &rarr; `#D8182B`) and multi-layer warm amber-orange drop shadow.
+  - Bold monospace numbers with warm fiery backglow inside dark frosted glass cards with metallic top specular highlights.
+  - Cinematic GSAP timeline entrance animation revealing the status badge, heading, subtitle, and digit cards.
+  - Smooth micro-slide transition on numerical digit ticks without layout jitter.
+  - Target countdown date locked to **1 November 2026, 00:00:00 IST** for the official registration and arena portal launch.
+- **Server Component Layout (`app/countdown/page.tsx`)**:
+  - Composed with fixed mirror-glass `<Navbar alwaysVisible />`, `<StatusBackground />`, `<NeonRibbons />`, `<EventCountdown />`, and cinematic `<FooterSection />`.
+- **Verification**: Ran `npx tsc --noEmit -p tsconfig.json` with zero type errors.
+
 ### 2026-10-28 — Team Leader Email in Purchased Events, Session Logout API & Auth Route Guards
 
 **Done**

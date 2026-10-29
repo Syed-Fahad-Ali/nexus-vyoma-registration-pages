@@ -12,6 +12,7 @@
   --font-sans: var(--font-inter), sans-serif;
   --font-body: var(--font-inter), sans-serif;
   --font-display: var(--font-anton), sans-serif;
+  --font-condensed: var(--font-barlow-condensed), sans-serif;
   --font-gondens: var(--font-barlow-condensed), var(--font-anton), sans-serif;
   --font-helvetica: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-ibm-plex: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -37,6 +38,7 @@
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
+  --color-ns-muted: var(--ns-muted);
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
@@ -101,6 +103,7 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --ns-muted: #4d4d4d;
 }
 
 .dark {
@@ -135,6 +138,7 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --ns-muted: #8f8f8f;
 }
 
 @layer base {
