@@ -58,6 +58,11 @@ const nextConfig: NextConfig = {
         permanent: true,
       },
       {
+        source: '/package',
+        destination: '/packages',
+        permanent: true,
+      },
+      {
         source: '/enroll-event',
         destination: '/register/enroll-event',
         permanent: true,

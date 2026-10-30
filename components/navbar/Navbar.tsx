@@ -137,6 +137,7 @@ function NavbarInner({ alwaysVisible = false }: NavbarProps = {}) {
   const navLinks = [
     { label: 'Home', href: '/' },
     { label: 'Events', href: '/events' },
+    { label: 'Packages', href: '/packages' },
     { label: 'Organizers', href: '/organizers' },
     { label: 'Contact', href: '/contact' },
   ];

@@ -37,11 +37,16 @@ export default function VerifyEmailPage(props: VerifyEmailPageProps) {
       <Navbar alwaysVisible />
 
       {/* 03 — Center Form Stage (Wireframe Screen 2) */}
-      <main className="flex-1 min-h-screen flex flex-col items-center justify-center w-full px-4 sm:px-6 pt-24 sm:pt-28 pb-12 z-10">
+      <main className="flex-1 min-h-[calc(100vh-80px)] flex flex-col items-center justify-center w-full px-4 sm:px-6 pt-24 sm:pt-28 pb-8 z-10">
         <Suspense fallback={null}>
           <VerifyEmailContent {...props} />
         </Suspense>
       </main>
+
+      {/* 04 — Footer Credits */}
+      <footer className="w-full py-4 text-center text-[11px] sm:text-xs text-zinc-500 font-sans tracking-wide z-10">
+        Organized by Islamia AMES Educational Society
+      </footer>
     </div>
   );
 }

@@ -49,7 +49,15 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 6. Direct access to /countdown
+  // 6. Keep /package and /packages active
+  if (pathname === '/package') {
+    return NextResponse.redirect(new URL('/packages', request.url));
+  }
+  if (pathname === '/packages' || pathname.startsWith('/packages/')) {
+    return NextResponse.next();
+  }
+
+  // 7. Direct access to /countdown
   if (pathname === '/countdown') {
     return NextResponse.next();
   }

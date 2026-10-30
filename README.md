@@ -43,6 +43,193 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Newest first.
 
+### 2026-10-31 — Added Society Credits Footer Across All Pages
+
+**Done**
+- **Added Society Credits Attribution**:
+  - Integrated credits text `"Organized by Islamia AMES Educational Society"` into [`FooterSection.tsx`](./components/footer/FooterSection.tsx), automatically applying to Home, Events, Packages, Organizers, Contact, Countdown, Coming Soon, Under Construction, Ticket, Enrollment, and all Payment Status pages.
+  - Added the credits footer to standalone auth/registration viewports in [`app/register/page.tsx`](./app/register/page.tsx), [`app/register/check-email/page.tsx`](./app/register/check-email/page.tsx), and [`app/register/verify-email/page.tsx`](./app/register/verify-email/page.tsx).
+  - Added the credits line to the telemetry footer in [`components/404/NotFoundView.tsx`](./components/404/NotFoundView.tsx).
+
+**Files modified**
+- `components/footer/FooterSection.tsx`
+- `app/register/page.tsx`
+- `app/register/check-email/page.tsx`
+- `app/register/verify-email/page.tsx`
+- `components/404/NotFoundView.tsx`
+- `README.md`
+
+### 2026-10-30 — Replaced Ticket Perforation Dots with Softly Faded Orange Line
+
+**Done**
+- **Softly Faded Orange Line Divider (`components/packages/PackageTicketCard.tsx`)**:
+  - Replaced the 12 punch-hole perforation dots spanning the lateral tear notches with a single continuous, softly faded brand orange divider line (`h-[1.5px] bg-gradient-to-r from-transparent via-[#FF6A00] to-transparent`).
+  - Added subtle orange glow (`shadow-[0_0_6px_rgba(255,106,0,0.35)]`) with smooth hover opacity transition directly above the `PAY NOW` stub.
+- **Verification**: Verified compilation with `npx tsc --noEmit -p tsconfig.json` (0 errors).
+
+### 2026-10-30 — Added Pass Subtitle and Faded Divider Line to `/packages` Tickets
+
+**Done**
+- **Pass Subtitles (`lib/data/packagesData.ts`)**:
+  - Added optional `subtitle` field to `SerializedPackage`.
+  - Added authentic descriptive subtitles across the 6 canonical passes:
+    - `QAWWALI PASS` $\rightarrow$ `Jashn-e-Suroor Live Experience`
+    - `ELIPSE DJ` $\rightarrow$ `Eclipse 404 Night Arena`
+    - `GEL BLASTER` $\rightarrow$ `Tactical Combat Arena`
+    - `OPEN MIC` $\rightarrow$ `Live Stage & Spotlight`
+    - `ARTY AFFAIRS` $\rightarrow$ `Creative Arts & Crafts`
+    - `SIGNATURE EXPERIENCES` $\rightarrow$ `Flagship All-Access Pass`
+  - Added dynamic fallback for MongoDB-fetched packages (`doc.subtitle` or derived from associated events).
+- **Faded Divider Line & Subtitle Layout (`components/packages/PackageTicketCard.tsx`)**:
+  - Positioned the subtitle right below the title in muted typography (`font-mono text-[9px] xs:text-[10px] sm:text-[10.5px] text-zinc-400 uppercase tracking-wide`).
+  - Added a clean faded divider line (`w-full h-px bg-gradient-to-r from-transparent via-white/15 to-transparent my-0.5 sm:my-1`) right after the subtitle to clearly demarcate the header from the bulleted inclusions.
+- **Verification**: Verified compilation with `npx tsc --noEmit -p tsconfig.json` (0 errors).
+
+### 2026-10-30 — Implemented Slender, Vertically Tall Rectangular Ticket Geometry on `/packages`
+
+**Done**
+- **Slender, Tall Rectangular Ticket Shape (`components/packages/PackageTicketCard.tsx`)**:
+  - Restructured the ticket card dimensions to be vertically tall and slightly narrower in width (`aspect-[1/1.65]` xs:`aspect-[1/1.7]` sm:`aspect-[1/1.75]` with `max-w-[275px]` sm:`max-w-[285px]` and `min-h-[380px] sm:min-h-[440px]`).
+  - Redesigned the ticket SVG border path (`viewBox="0 0 240 420"`) with non-scaling stroke hugging 4 smooth rounded corners (`r=18`), top-center semicircular notch (`r=14`), bottom-center semicircular notch (`r=14`), and lateral tear notches at `y=348` (`r=12`).
+  - Dotted circular perforation line seamlessly connecting lateral notches across the card stub.
+  - Sized internal elements (in-flow header tags, title, inclusions, pricing, and stub `PAY NOW` CTA) so content breathes naturally without text overlap or squarish stretching.
+- **Refined Centered 3-3 Desktop & 2-2-2 Mobile Layout (`components/packages/PackagesExplorer.tsx`)**:
+  - Maintained the 3-3 desktop grid and 2-2-2 mobile grid inside a centered `max-w-4xl` frame, perfectly presenting all 6 passes without horizontal bulging.
+- **Verification**: Verified TypeScript compilation cleanly with `npx tsc --noEmit -p tsconfig.json` (0 errors).
+
+### 2026-10-30 — Eliminated Mobile Text Clipping & Slimmed Desktop Profile on `/packages`
+
+**Done**
+- **Eliminated Mobile Text Merging & Misplacement (`components/packages/PackageTicketCard.tsx`)**:
+  - Re-architected card header to safely separate pass metadata and recommendation tags without horizontal collisions on narrow 160px mobile grids.
+  - Scaled typography dynamically (`text-sm xs:text-base sm:text-lg`) with `hyphens-none` and clean word wrapping to prevent awkward line breaks (e.g. `EXPERIENC / ESES`).
+  - Scaled down inclusion text to clean `[10.5px] xs:[11.5px] sm:text-xs font-mono`.
+- **Slimmed Desktop Profile (De-bulged Layout)**:
+  - Constrained card max-width to `max-w-[340px] mx-auto` and centered the 3-3 desktop grid in a refined `max-w-5xl` container.
+  - Slimmed down the SVG ticket viewBox to `280x370` with reduced padding and tighter vertical proportions, creating a sleek, compact, and refined ticket profile.
+- **Verification**: Verified compilation cleanly with `npx tsc --noEmit -p tsconfig.json` (0 errors).
+
+### 2026-10-30 — Integrated Official Workshop Posters & Detailed Event Cards on `/packages`
+
+**Done**
+- **Rich Workshop Posters (`components/packages/PackagesExplorer.tsx`)**:
+  - Upgraded the `WORKSHOPS` section to display official workshop posters with ambient color-matched blurred backdrops and crisp uncropped posters matching the design from `/events` (`EventCard.tsx`).
+- **Comprehensive Metadata & Details**:
+  - Added category kicker (`WORKSHOP`), flagship arena badge, workshop title, 2-line summary description, and metadata strip (`Venue`, highlighted `Date`, `Time`, and `Participation Type`).
+  - Integrated individual workshop pricing (`₹150`, `₹200`) and preserved the radio single-selection behavior with the interactive `Select (1)` / `PAY NOW` action bar.
+- **Verification**: Verified compilation cleanly with `npx tsc --noEmit -p tsconfig.json` (0 errors).
+
+### 2026-10-30 — Displayed All 6 Canonical Passes in 3-3 Desktop & 2-2-2 Mobile Layout
+
+**Done**
+- **Enabled All 6 Passes (`lib/data/packagesData.ts`, `components/packages/PackagesExplorer.tsx`)**:
+  - Configured all 6 canonical passes: `QAWALI`, `ELIPSE DJ`, `GEL BLASTER`, `OPEN MIC`, `ARTY AFFAIRS`, and `SIGNATURE EXPERIENCES` (with `jashn - e - suroor access`).
+  - Rendered in a balanced 3-3 grid on desktop (`lg:grid-cols-3`) and a 2-2-2 grid on mobile (`grid-cols-2`).
+- **Verification**: Verified compilation cleanly via `npx tsc --noEmit -p tsconfig.json` with 0 type errors.
+
+### 2026-10-30 — Fully Outlined Ticket Silhouette & 3-3 Desktop / 2-2-1 Mobile Layout on `/packages`
+
+**Done**
+- **Precision Fully Outlined SVG Ticket Silhouette (`components/packages/PackageTicketCard.tsx`)**:
+  - Implemented an exact vector path outline stroke (`vector-effect="non-scaling-stroke"`) that contours around all 4 rounded corners (`r=22`), the top-center semicircular scoop, the bottom-center semicircular scoop, and both lateral tear notches.
+  - Outlined with high-contrast visible strokes (`#FF6A00` for recommended tickets, clean zinc border with orange hover for standard passes) so the curved ticket cuts are sharply defined against the black background.
+  - Embedded the circular punch-hole dotted perforation line separating the body from the lower tear-off stub.
+- **Configured 3-3 Desktop & 2-2-1 Mobile Grid (`components/packages/PackagesExplorer.tsx`)**:
+  - Desktop: 2 balanced rows of 3 tickets each (`lg:grid-cols-3 gap-6 lg:gap-8`), providing generous space for detailed typography and inclusions.
+  - Mobile: Clean 2-2-1 layout (`grid-cols-2`, with the 5th pass `ARTY AFFAIRS` centered on row 3).
+- **Verification**: Verified compilation cleanly with `npx tsc --noEmit -p tsconfig.json` (0 errors).
+
+### 2026-10-30 — Implemented Exact Reference Ticket Silhouette with Top/Bottom Scoops & Perforation Dots
+
+**Done**
+- **Exact Reference Ticket Silhouette (`components/packages/PackageTicketCard.tsx`)**:
+  - Implemented the geometry matching the user's uploaded reference image:
+    - **4 Smooth Rounded Outer Corners**: `rounded-[22px]`.
+    - **Top-Center Inward Semicircular Scoop**: `radial-gradient(circle 14px at 50% 0)`.
+    - **Bottom-Center Inward Semicircular Scoop**: `radial-gradient(circle 14px at 50% 100%)`.
+    - **2 Lateral Side Tear Notches**: Inward scoops at `calc(100% - 66px)` on the left and right edges.
+    - **Dotted Circular Hole Perforation**: Horizontal line of circular punch-hole dots spanning between the two lateral notches.
+- **Support for 6 Festival Passes**:
+  - Configured `CANONICAL_6_PACKAGES` and grid layout in `PackagesExplorer.tsx` to display all 6 passes with zero text collisions and balanced responsive columns.
+- **Verification**: Verified compilation cleanly via `npx tsc --noEmit -p tsconfig.json` with 0 type errors.
+
+### 2026-10-30 — Fixed Title Overlap Bug & Polished Clean Ticket Shape on `/packages`
+
+**Done**
+- **Fixed Text Merging & Badge Overlap Bug (`components/packages/PackageTicketCard.tsx`)**:
+  - Moved the `RECOMMENDED` badge out of `absolute` positioning and placed it into a dedicated header row directly above the title.
+  - Ensured titles wrap cleanly (`break-words`, `leading-tight`) across all screen widths with zero possibility of text colliding with or sliding underneath badges.
+- **Polished Ticket Shape & Visible Borders**:
+  - Refined the 4 corner scoops (`14px`) and 2 mid-stub tear notches (`12px`) with border framing so the ticket cutouts are clearly delineated against the dark page background.
+- **Verification**: Verified compilation cleanly via `npx tsc --noEmit -p tsconfig.json` with 0 type errors.
+
+### 2026-10-30 — Locked Exactly 5 Passes & Clean Minimalist Wireframe Fidelity on `/packages`
+
+**Done**
+- **Strict 5-Pass Lock (`lib/data/packagesData.ts`)**:
+  - Enforced strictly the canonical 5 passes from the user's wireframe: `QAWALI`, `ELIPSE DJ`, `ARTY AFFAIRS`, `GEL BLASTER`, `OPEN MIC`.
+  - Guaranteed exactly 5 passes are displayed in both desktop (5 columns in 1 row) and mobile (2x2 grid with `ARTY AFFAIRS` centered on row 3).
+- **Clean Minimalist Ticket Card Design (`components/packages/PackageTicketCard.tsx`)**:
+  - Stripped away distracting textures, solar flares, and visual noise.
+  - Kept a crisp, clean vertical admission stub shape with 4 inward corner scoops, 2 side perforation notches, clean bullet inclusions (`- 3 Day entry`, `- 9 Free events`, `- <event> access`), and clean `PAY NOW` action buttons.
+- **Verification**: Verified TypeScript compilation cleanly via `npx tsc --noEmit -p tsconfig.json` (0 errors).
+
+### 2026-10-30 — Implemented Vertical Vintage Ticket Silhouette with 4 Corner Scoops & Perforation Notches
+
+**Done**
+- **Precision Vintage Ticket Silhouette (`components/packages/PackageTicketCard.tsx`)**:
+  - Implemented the exact vintage admission stub geometry from the reference layout adapted vertically via CSS `mask-image`:
+    - **4 Inward Corner Circular Scoops**: Cutouts at all 4 outer corners (`(0,0)`, `(100%,0)`, `(0,100%)`, `(100%,100%)`).
+    - **2 Mid-Stub Semicircular Tear Notches**: Cutouts on both left and right edges at the horizontal perforation dividing line (`calc(100% - 66px)`).
+    - **Horizontal Dashed Perforation Line**: Connecting both tear notches seamlessly.
+- **Reference Layout & Typography Hierarchy**:
+  - Top kicker: `NEXUS VYOMA PRESENTS · FESTIVAL PASS 2026` (mirroring `Y COMBINATOR PRESENTS...`).
+  - Dominant bold condensed headline title (`GARRY TAN` style).
+  - Inclusions list with diagonal atmospheric solar flare texture.
+  - Lower tear-off stub with `ADMIT ONE` metadata, `₹Price` highlight, and `PAY NOW` action.
+- **Verification**: Verified zero TypeScript errors via `npx tsc --noEmit -p tsconfig.json`.
+
+### 2026-10-30 — Database Integration, Bespoke Crimson-Cosmic Palette & Single Workshop Selection on `/packages`
+
+**Done**
+- **Connected to Existing Database (`lib/data/packagesData.ts`)**:
+  - Implemented `loadPackagesPageData()` to query the existing MongoDB `packages` and `events` collections (zero new databases created).
+  - Fetches populated package records with dynamic inclusions and dynamically filters workshop masterclasses.
+  - Provided graceful fallback data so the page maintains 100% uptime and wireframe fidelity even during DB migrations.
+- **Enforced Strict Single Workshop Selection**:
+  - Rewrote workshop state logic in `components/packages/PackagesExplorer.tsx`: only **1 workshop** can be selected at a time (radio button behavior, updating `Select (1)` / `Select (0)` and disabling `PAY NOW` if none is chosen).
+- **Elevated Bespoke UI & Shifted Away from Common Orange AI Slop**:
+  - Upgraded color accents using Nexus Vyoma's official brand tokens from `tokens.css`:
+    - Shifted base from flat orange to **Crimson Ember (`#D8182B`)**, **Cosmic Electric Blue (`#0066FF`)**, and **Deep Obsidian Navy (`#060810` / `#0A0F1E`)**.
+    - Replaced generic card boxes with genuine ticket stubs featuring asymmetric perforation notches, inner drop shadows, and micro-embossed glyphs (`◆`, `★`).
+- **Added Dynamic Recommendation Badges**:
+  - Implemented floating `★ RECOMMENDED`, `MOST POPULAR`, and `★ FLAGSHIP` tags with glowing dual-tone pill borders on premium passes and standout workshops.
+- **Verification**: Verified compilation cleanly via `npx tsc --noEmit -p tsconfig.json` with 0 type errors.
+
+### 2026-10-30 — Added `Packages` Link to Navbar & Mobile Drawer
+
+**Done**
+- **Updated Navbar Navigation**: Added `{ label: 'Packages', href: '/packages' }` to the primary navigation bar and mobile drawer in `components/navbar/Navbar.tsx`.
+- **Active Route Highlighting**: Automatically shows orange gradient underline on desktop and pill highlight in mobile menu when viewing `/packages`.
+- **Verification**: Verified TypeScript compilation with `npx tsc --noEmit -p tsconfig.json` (0 errors).
+
+### 2026-10-30 — Designed & Built `/packages` Page Matching `/events` Aesthetic & Wireframes
+
+**Done**
+- **Created `/packages` Page (`app/packages/page.tsx`)**:
+  - Built as a Server Component replicating the framed dark container (`rounded-2xl sm:rounded-3xl border border-zinc-800/90 bg-black/70`), shared `Navbar`, and `FooterSection` from `/events`.
+- **Ticket-Shaped Package Cards (`components/packages/PackageTicketCard.tsx`)**:
+  - Created 5 vertical ticket-shaped pass cards (`QAWALI`, `ELIPSE DJ`, `ARTY AFFAIRS`, `GEL BLASTER`, `OPEN MIC`) with top flame gradient strips, semicircular side punch-out notches, dashed perforation divider lines, inclusion lists, and `PAY NOW` action buttons.
+  - Responsive layout matches both desktop and mobile wireframes: 5-column horizontal row on desktop (`lg:grid-cols-5`), and a 2x2 grid (`QAWALI` | `ELIPSE DJ`, `GEL BLASTER` | `OPEN MIC`) with `ARTY AFFAIRS` centered on the 3rd row on mobile.
+- **Entry Ticket Banner & Workshops Section (`components/packages/PackagesExplorer.tsx`)**:
+  - Added the full-width horizontal `ENTRY TICKET - 9 FREE EVENTS + TECHNICAL EVENTS | 299` strip.
+  - Built the `WORKSHOPS` container with 3 vertical selectable workshop cards (`grid-cols-3`) and a bottom-right action bar displaying `Select (1)` (desktop) / `SELECT - 1` (mobile) alongside a `PAY NOW` button.
+- **GSAP Rolling Title (`components/packages/PackagesTitleRolling.tsx`)**:
+  - Implemented the 2-cycle vertical rolling letter reveal for `PACKAGES`, matching `EventsTitleRolling.tsx` and honoring `prefers-reduced-motion`.
+- **Routing Updates (`next.config.ts`, `proxy.ts`)**:
+  - Added `/package` -> `/packages` permanent redirect and enabled direct access to `/packages` in `proxy.ts`.
+- **Verification**: Verified zero TypeScript errors via `npx tsc --noEmit -p tsconfig.json`.
+
 ### 2026-10-29 — Fixed Wordmark Image Resolution in Production Deployments
 
 **Done**

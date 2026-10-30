@@ -156,9 +156,12 @@ export default function NotFoundView() {
         {/* Footer Telemetry */}
         <footer
           style={{ pointerEvents: 'auto' }}
-          className="w-full max-w-7xl mx-auto px-5 sm:px-8 pb-6 sm:pb-8 flex flex-wrap items-center justify-between gap-3 text-[10px] sm:text-[11px] font-mono tracking-widest text-zinc-500 uppercase"
+          className="w-full max-w-7xl mx-auto px-5 sm:px-8 pb-6 sm:pb-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-[10px] sm:text-[11px] font-mono tracking-widest text-zinc-500 uppercase text-center sm:text-left"
         >
           <span>NEXUS VYOMA // ISL ENGINEERING COLLEGE, HYDERABAD</span>
+          <span className="font-sans normal-case tracking-normal text-zinc-400">
+            Organized by Islamia AMES Educational Society
+          </span>
           <span>17.38405° N / 78.45636° E</span>
         </footer>
       </div>

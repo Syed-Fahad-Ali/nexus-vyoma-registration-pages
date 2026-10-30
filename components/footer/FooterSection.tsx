@@ -71,6 +71,13 @@ export default function FooterSection() {
             </div>
           </div>
         </div>
+
+        {/* Footer Credits */}
+        <div className="w-full pt-4 -mt-6 sm:-mt-8 text-center">
+          <p className="text-[11px] sm:text-xs text-zinc-400 font-sans tracking-wide">
+            Organized by Islamia AMES Educational Society
+          </p>
+        </div>
       </div>
     </footer>
   );
