@@ -38,7 +38,13 @@ const entryTicketSchema = new mongoose.Schema({
         type: String,
         default: null
     },
+    isTechEvents: {
+        type: Boolean,
+        default: false
+    }
 }, { timestamps: true, overwriteModels: true });
+
+entryTicketSchema.index({ userId: 1 }, { unique: true });
 
 const EntryTicket = mongoose.models.EntryTicket || mongoose.model("EntryTicket", entryTicketSchema);
 
