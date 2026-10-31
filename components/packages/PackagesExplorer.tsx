@@ -628,7 +628,7 @@ export default function PackagesExplorer({
                     <ul className="flex flex-col gap-1.5 pt-0.5 font-mono text-[10px] xs:text-[11px] sm:text-[11.5px] text-zinc-300 leading-relaxed">
                       <li className="flex items-center gap-2">
                         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${theme.bulletDot}`} />
-                        <span className="text-zinc-200">3 Day Full Fest Entry</span>
+                        <span className="text-zinc-200">3 Days Full Fest Entry</span>
                       </li>
                       <li className="flex items-center gap-2">
                         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${theme.bulletDot}`} />

@@ -263,7 +263,7 @@ const EnrollableEventSection = React.memo(function EnrollableEventSection({
                                 {isTeam ? 'SQUAD ARENA' : 'SOLO COMPETITION'}
                               </span>
                               <span className="text-zinc-400 font-medium tracking-wider">
-                                {ev.entry_fee && ev.entry_fee > 0 ? `₹${ev.entry_fee}` : 'INCLUDED WITH PASS'}
+                                INCLUDED WITH PASS
                               </span>
                             </div>
 

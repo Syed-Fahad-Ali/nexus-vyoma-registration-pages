@@ -284,7 +284,7 @@ export function parseApiPackagesData(rawItems?: RawPackageApiItem[] | null): Pac
       // Build inclusions list from package & event properties
       const inclusions: string[] = [];
       if (isEntryTicket) {
-        inclusions.push('3 Day Entry');
+        inclusions.push('3 Days Entry');
         inclusions.push('9 Free Events');
       }
       if (eventTitles.length > 0) {

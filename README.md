@@ -43,6 +43,18 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Newest first.
 
+### 2026-11-01 — Removed Tech Event Prices & Updated Ticket Inclusions Wording
+
+**Done**
+- **Removed Prices from Tech Events (`components/registration/EventEnrollmentView.tsx`)**:
+  - Replaced conditional price indicators in the Tech Events & Cultural Events cards with `"INCLUDED WITH PASS"`.
+  - Zero prices or currency figures are displayed in the Tech Events section.
+- **Updated Package Ticket Inclusions Wording (`lib/data/packagesData.ts`, `components/packages/PackagesExplorer.tsx`)**:
+  - Changed ticket inclusion item from `"3 Day Entry"` to `"3 Days Entry"`.
+  - Changed workshop inclusion item to `"3 Days Full Fest Entry"`.
+- **Validation**:
+  - Confirmed `npx tsc --noEmit` compiles cleanly with zero errors.
+
 ### 2026-11-01 — Enrolled Events API Integration & Sections Placement
 
 **Done**
