@@ -5,7 +5,7 @@ import { connectToDatabase } from "@/database/db";
 import EntryTicket from "@/database/schema/entry-ticket.schema";
 import RegisterUser from "@/database/schema/register-user.schema";
 
-import { TokenData } from "../enroll-event/route";
+import { TokenData } from "../enrolled-event/route";
 import { verifyJWT } from "@/utilities/jwt";
 
 export async function POST(request: NextRequest) {

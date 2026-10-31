@@ -3,11 +3,12 @@
 import React, { useRef, useState, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
 import SpecularButton from '@/components/ui/SpecularButton';
+import FloatingMenu from '@/components/ui/liquid-morph-floating-menu';
 
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger, useGSAP);
@@ -18,6 +19,7 @@ interface NavbarProps {
 }
 
 function NavbarInner({ alwaysVisible = false }: NavbarProps = {}) {
+  const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navContainerRef = useRef<HTMLDivElement>(null);
@@ -137,7 +139,6 @@ function NavbarInner({ alwaysVisible = false }: NavbarProps = {}) {
   const navLinks = [
     { label: 'Home', href: '/' },
     { label: 'Events', href: '/events' },
-    { label: 'Packages', href: '/packages' },
     { label: 'Organizers', href: '/organizers' },
     { label: 'Contact', href: '/contact' },
   ];
@@ -248,68 +249,46 @@ function NavbarInner({ alwaysVisible = false }: NavbarProps = {}) {
             </SpecularButton>
           </Link>
 
-          {/* Mobile Menu Toggle */}
+          {/* Mobile Menu Toggle (3 lines morphing into X) */}
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Toggle navigation menu"
-            className="md:hidden flex flex-col justify-center items-center w-9 h-9 xs:w-8 xs:h-8 rounded-full bg-white/10 border border-white/15 text-white focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF6A00] touch-manipulation cursor-pointer"
+            className="md:hidden flex flex-col justify-center items-center gap-1 w-9 h-9 xs:w-8 xs:h-8 rounded-full bg-white/10 border border-white/15 text-white focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF6A00] touch-manipulation cursor-pointer"
           >
             <span
-              className={`w-3.5 h-0.5 bg-white transition-all duration-300 ${mobileMenuOpen ? 'rotate-45 translate-y-1' : '-translate-y-0.5'
-                }`}
+              className={`w-3.5 h-0.5 bg-white rounded-full transition-all duration-300 ${
+                mobileMenuOpen ? 'rotate-45 translate-y-1.5 bg-[#FF6A00]' : ''
+              }`}
             />
             <span
-              className={`w-3.5 h-0.5 bg-white transition-all duration-300 ${mobileMenuOpen ? '-rotate-45 -translate-y-0.5' : 'translate-y-0.5'
-                }`}
+              className={`w-3.5 h-0.5 bg-white rounded-full transition-all duration-300 ${
+                mobileMenuOpen ? 'opacity-0 scale-x-0' : 'opacity-100 scale-x-100'
+              }`}
+            />
+            <span
+              className={`w-3.5 h-0.5 bg-white rounded-full transition-all duration-300 ${
+                mobileMenuOpen ? '-rotate-45 -translate-y-1.5 bg-[#FF6A00]' : ''
+              }`}
             />
           </button>
         </div>
       </div>
 
-      {/* Mobile Mirror Glass Drawer & Backdrop Overlay */}
+      {/* Mobile Liquid Morph Floating Menu */}
       {mobileMenuOpen && (
-        <>
-          <div
-            className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm pointer-events-auto"
-            onClick={() => setMobileMenuOpen(false)}
-            aria-hidden="true"
-          />
-          <div
-            className="md:hidden fixed inset-x-4 top-16 z-50 pointer-events-auto rounded-3xl p-6 border border-white/10 shadow-2xl animate-in fade-in slide-in-from-top-4 duration-200 font-sans"
-            style={{
-              backgroundColor: 'rgba(10, 15, 30, 0.95)',
-              backdropFilter: 'blur(24px) saturate(180%)',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
-            }}
-          >
-            <div className="flex flex-col gap-3">
-              {navLinks.map((link) => {
-                const isActive =
-                  pathname === link.href ||
-                  (link.href !== '/' && pathname?.startsWith(link.href));
-                return (
-                  <Link
-                    key={link.label}
-                    href={link.href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`px-4 py-3 rounded-2xl transition-all flex items-center justify-between font-display font-normal tracking-[0.08em] ${isActive
-                        ? 'bg-[#FF6A00]/15 text-[#FF6A00] border border-[#FF6A00]/30'
-                        : 'bg-white/[0.03] hover:bg-white/[0.08] text-sm text-zinc-300 hover:text-white'
-                      }`}
-                  >
-                    <span>{link.label}</span>
-                    <span className="text-[#FF6A00] text-xs">→</span>
-                  </Link>
-                );
-              })}
-              <div className="pt-3 mt-1 border-t border-white/10 flex items-center justify-between text-xs text-zinc-400 font-mono">
-                <span>ISL ENGINEERING COLLEGE</span>
-                <span className="text-[#FF6A00]">HYDERABAD</span>
-              </div>
-            </div>
-          </div>
-        </>
+        <FloatingMenu
+          items={[
+            { label: 'HOME', onClick: () => router.push('/') },
+            { label: 'EVENTS', onClick: () => router.push('/events') },
+            { label: 'ORGANIZERS', onClick: () => router.push('/organizers') },
+            { label: 'CONTACT', onClick: () => router.push('/contact') },
+            { label: 'CLAIM PASS', onClick: () => router.push('/check-email') },
+          ]}
+          isOpen={mobileMenuOpen}
+          onOpenChange={setMobileMenuOpen}
+          className="md:hidden"
+        />
       )}
     </header>
   );

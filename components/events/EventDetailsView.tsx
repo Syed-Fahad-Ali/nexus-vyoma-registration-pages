@@ -30,10 +30,10 @@ export default function EventDetailsView({ event }: EventDetailsViewProps) {
             <span>INCLUDED IN ENTRY TICKET</span>
           </div>
           <Link
-            href="/register/entry-ticket"
+            href="/packages"
             className="inline-flex items-center justify-center min-h-[44px] px-5 py-2.5 rounded-lg bg-[#FF6A00] text-black hover:bg-[#FF7A1A] active:scale-[0.98] font-sans font-bold text-xs sm:text-sm tracking-wider uppercase transition-all duration-200 select-none shadow-[0_0_20px_rgba(255,106,0,0.25)]"
           >
-            <span>GET ENTRY TICKET</span>
+            <span>GET FESTIVAL PASS</span>
           </Link>
         </div>
       );

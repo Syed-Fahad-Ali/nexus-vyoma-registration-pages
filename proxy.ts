@@ -3,16 +3,17 @@ import type { NextRequest } from 'next/server';
 
 /**
  * Next.js 16 Proxy
- * Keeps /organizer, /home, and /contact active.
- * Ensures all /api/* routes are completely unblocked and untouched.
- * Rewrites all other page routes to show the event countdown.
+ * Allows all pages, assets, and API routes to function normally without blocking or rewriting to countdown.
  */
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. NEVER block or touch any API route
+  // 1. API routes & payment create-order rewrite
   if (pathname.startsWith('/api')) {
     return NextResponse.next();
+  }
+  if (pathname === '/payments/create-order') {
+    return NextResponse.rewrite(new URL('/api/payments/create-order', request.url));
   }
 
   // 2. Allow Next.js internals, static files, and assets
@@ -28,43 +29,19 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 3. Keep / and /home active
-  if (pathname === '/') {
-    return NextResponse.next();
-  }
+  // 3. Canonical URL redirects
   if (pathname === '/home') {
-    return NextResponse.rewrite(new URL('/', request.url));
+    return NextResponse.redirect(new URL('/', request.url));
   }
-
-  // 4. Keep /organizer and /organizers active
   if (pathname === '/organizer') {
     return NextResponse.redirect(new URL('/organizers', request.url));
   }
-  if (pathname === '/organizers' || pathname.startsWith('/organizers/')) {
-    return NextResponse.next();
-  }
-
-  // 5. Keep /contact active
-  if (pathname === '/contact' || pathname.startsWith('/contact/')) {
-    return NextResponse.next();
-  }
-
-  // 6. Keep /package and /packages active
   if (pathname === '/package') {
     return NextResponse.redirect(new URL('/packages', request.url));
   }
-  if (pathname === '/packages' || pathname.startsWith('/packages/')) {
-    return NextResponse.next();
-  }
 
-  // 7. Direct access to /countdown
-  if (pathname === '/countdown') {
-    return NextResponse.next();
-  }
-
-  // 7. Apart from /organizer, /home, /contact:
-  // All other pages must show the event countdown
-  return NextResponse.rewrite(new URL('/countdown', request.url));
+  // 4. All pages are unblocked and served directly
+  return NextResponse.next();
 }
 
 // Default export alias for compatibility
@@ -81,4 +58,3 @@ export const config = {
     '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };
-

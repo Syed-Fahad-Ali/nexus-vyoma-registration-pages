@@ -19,6 +19,9 @@ function toSafeRegisterPath(url: unknown, fallback: string): string {
   if (typeof url !== 'string' || !url.startsWith('/') || url.startsWith('//')) {
     return fallback;
   }
+  if (url === '/packages' || url.startsWith('/packages/')) {
+    return url;
+  }
   return url.startsWith('/register') ? url : `/register${url}`;
 }
 
@@ -66,7 +69,7 @@ export default function OtpStepForm({ email }: OtpStepFormProps) {
         } catch {
           // ignore localStorage error
         }
-        const redirectUrl = toSafeRegisterPath(data?.redirect_url, '/register/entry-ticket');
+        const redirectUrl = toSafeRegisterPath(data?.redirect_url, '/packages');
         setTimeout(() => {
           router.push(redirectUrl);
         }, 800);

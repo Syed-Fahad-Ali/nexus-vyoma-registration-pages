@@ -63,6 +63,16 @@ const nextConfig: NextConfig = {
         permanent: true,
       },
       {
+        source: '/register/entry-ticket',
+        destination: '/packages',
+        permanent: true,
+      },
+      {
+        source: '/ticket',
+        destination: '/packages',
+        permanent: true,
+      },
+      {
         source: '/enroll-event',
         destination: '/register/enroll-event',
         permanent: true,
@@ -70,6 +80,16 @@ const nextConfig: NextConfig = {
       {
         source: '/enroll-events',
         destination: '/register/enroll-event',
+        permanent: true,
+      },
+      {
+        source: '/register/checkout-event',
+        destination: '/packages',
+        permanent: true,
+      },
+      {
+        source: '/checkout-event',
+        destination: '/packages',
         permanent: true,
       },
     ];

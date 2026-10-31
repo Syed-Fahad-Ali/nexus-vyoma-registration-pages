@@ -43,6 +43,364 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Newest first.
 
+### 2026-11-01 — Enrolled Events API Integration & Sections Placement
+
+**Done**
+- **Integrated `GET /api/enrollement/enrolled-event` (`app/register/enroll-event/page.tsx`)**:
+  - Replaced legacy `/api/enrollement/enroll-event` with the active endpoint `GET /api/enrollement/enrolled-event`.
+  - Parsed API response payload: `user`, `purchasedEvents`, `availableFreeEvents`, and `availableTechEvents`.
+  - Mapped `purchasedEvents` into individual and squad cards (with populated event details and team leader/member metadata).
+- **Connected Enrolment & Teammate Verification Mutations (`components/registration/EventEnrollmentView.tsx`)**:
+  - Pointed event enrolment mutations to `POST /api/enrollement/enrolled-event` passing `{ eventId }` for solo events and `{ eventId, teamName, teamEmails }` for squad events.
+  - Squad registration modal queries `POST /api/enrollement/check-team-email` before teammate addition to verify registered status and active entry tickets.
+  - Implemented responsive optimistic state updates: upon enrolment, cards move seamlessly into the Purchased Events section and are cleared from available listings.
+- **Purchased Event Cards & Mobile Layout Polish**:
+  - Removed date, time, and location/venue metadata from purchased cards as directed.
+  - Displayed distinct `PURCHASED` and `PAID SQUAD` status badges with inspection modal (`View Squad`) for team rosters.
+- **Fixed Backend Route Import Paths**:
+  - Updated `TokenData` imports in `app/api/enrollement/check-team-email/route.ts`, `app/api/package/route.ts`, and `app/api/payments/create-order/route.ts` to reference `enrolled-event/route.ts`.
+- **Validation**:
+  - Verified full TypeScript compilation via `npx tsc --noEmit` with zero errors.
+
+**Files changed**
+- `app/register/enroll-event/page.tsx`
+- `components/registration/EventEnrollmentView.tsx`
+- `app/api/enrollement/check-team-email/route.ts`
+- `app/api/package/route.ts`
+- `app/api/payments/create-order/route.ts`
+- `README.md`
+
+### 2026-11-01 — Added 3D Rolling Text Reveal to User Greeting on /enroll-event
+
+**Done**
+- **Created `<UserGreetingRolling />` Component (`components/registration/UserGreetingRolling.tsx`)**:
+  - Implemented the signature 2-cycle GSAP 3D vertical rolling text reveal for the user greeting on `/enroll-event`.
+  - Splits `"Hi,"`, `{userName}`, and `":)"` into individual letter glyphs animated with `perspective: 800px`, `yPercent`, and `rotateX`.
+  - Preserves crisp white typography on `"Hi,"` and `":)"`, with flaming orange (`#FF6A00`) and ambient glow (`drop-shadow-[0_0_20px_rgba(255,106,0,0.4)]`) on the dynamic username.
+  - Fully dynamic for all authenticated users, with `prefers-reduced-motion` detection and screen-reader `aria-label`.
+- **Integrated into Stage (`components/registration/EventEnrollmentView.tsx`)**:
+  - Replaced the static `<h1>` with `<UserGreetingRolling userName={userName} />`.
+- **Verification**: Verified compilation with `npx tsc --noEmit` (0 errors).
+
+**Files modified**
+- `components/registration/UserGreetingRolling.tsx` (new)
+- `components/registration/EventEnrollmentView.tsx`
+- `README.md`
+
+### 2026-11-01 — Integrated Section 7 Brand Visual Elements & Textures on /enroll-event
+
+**Done**
+- **Added Section 7 Visual Elements & Textures (`components/brand/VisualTextures.tsx`, `app/register/enroll-event/page.tsx`)**:
+  - Implemented `<MinimalBrandBackground />` directly matching Section 7 of the official Brand Style Guide:
+    1. **Gradient Waves**: Smooth poster curved wave ribbons (SVG Bézier paths with flame `#D8182B`/`#FF6A00` and electric azure `#0066FF`/`#7B2CFF` gradients with soft Gaussian blur).
+    2. **Light Glows**: Delicate atmospheric depth glows (`blur-[140px]` to `blur-[160px]`, low opacity $8\%\text{--}18\%$) in upper-left flame, mid-right azure, and bottom crimson.
+    3. **Star / Spark Element**: Floating minimal 4-point golden/white `<Spark />` accents with subtle ambient halos.
+    4. **Abstract Background**: Dark textured grain overlay (`opacity-[0.035]`) on deep black `#000000`.
+    5. **Diagonal Streaks**: Minimal $35^\circ$ laser speed lines (`w-[1.5px]` and `w-[1px]`) in warm flame and azure.
+  - Mounted the background at a fixed, minimal visual level behind the page content with `pointer-events-none -z-10`.
+  - Updated the main enrollment container in `app/register/enroll-event/page.tsx` to `bg-transparent` so the textures shine through smoothly.
+- **Verification**: Verified compilation with `npx tsc --noEmit` (0 errors).
+
+**Files modified**
+- `components/brand/VisualTextures.tsx`
+- `app/register/enroll-event/page.tsx`
+- `README.md`
+
+### 2026-11-01 — Updated Purchased Event Cards & Mobile Alignment on /enroll-event
+
+**Done**
+- **Updated Purchased Events Cards (`components/registration/EventEnrollmentView.tsx`)**:
+  - Completely removed location (`📍 Venue`) and date/time (`📅 Date`) from all purchased event cards as requested.
+  - Replaced with high-end luminous status indicators:
+    - Solo events: `PURCHASED` with glowing emerald status spark and `OFFICIAL ENTRY` badge.
+    - Squad events: `PAID SQUAD` with glowing emerald status spark and tactile `View Squad (N) →` inspector CTA.
+- **Fixed Mobile Layout & Text Alignment**:
+  - Replaced rigid horizontal header rows with responsive flex-wrapping (`flex flex-wrap items-baseline gap-x-2.5 gap-y-1`) so category tags (`// CULTURAL & ARTS`) never crush titles on small screens.
+  - Adjusted card widths to `w-[84vw] max-w-[320px] sm:w-[330px]` for natural momentum scrolling on mobile viewports (360px–390px).
+  - Enhanced title wrapping with `line-clamp-2 break-words` so event names are never prematurely clipped.
+  - Ensured all mobile interactive elements and CTAs adhere to $\ge 44\text{px}$ touch targets.
+- **Verification**: Verified compilation with `npx tsc --noEmit` (0 errors).
+
+**Files modified**
+- `components/registration/EventEnrollmentView.tsx`
+- `README.md`
+
+### 2026-11-01 — Redesigned /enroll-event with Luxe Modern Palette (Platinum Noir & Neon Rose / Azure)
+
+**Done**
+- **Upgraded to Direction C (Ultra-Sleek Modern Luxury & Slayy Editorial) in `components/registration/EventEnrollmentView.tsx`**:
+  - **Purchased Events Section**: Refactored into **Platinum Noir & Smoked Titanium** with deep obsidian satin backdrops (`#0C0C10`), specular platinum top reflection hairlines (`from-transparent via-white/80 to-transparent`), glowing white status spark (`PASS ACTIVE`), and titanium-beveled tactile squad inspector buttons (`border-white/[0.18] bg-white/[0.06] text-zinc-100`).
+  - **Cultural & Creative Events**: Styled with haute-couture **Hot Magenta Rose (`#FF207D`)** on deep obsidian noir (`#0B0508` container, `#10070B` cards), delicate rose borders (`#38111E` $\rightarrow$ `#6B1B38`), radiant magenta hairlines, and luxury rose-gold/magenta CTAs (`bg-[#200B14] hover:bg-[#2D0F1C] text-[#FFD6E5] border-[#6B1B38]`).
+  - **Tech Events & Battles**: Styled with high-performance **Electric Azure (`#0066FF`)** on smoked carbon obsidian (`#050811` container, `#070B16` cards), razor cobalt hairlines, and electric azure CTAs (`bg-[#0B152A] hover:bg-[#101F3D] text-[#D8E6FF] border-[#1E4380]`).
+  - **Modals & Overlays**: Styled with obsidian satin `#0A0A0E`, titanium borders, and gradient rose confirmation CTA (`#FF207D` $\rightarrow$ `#D8182B`).
+- **Preserved Strict Constraints**:
+  - 100% frontend modifications; zero changes to backend routes, database schemas, or APIs.
+  - Greeting `Hi, {userName} :)` and `#FF6A00` styling remain 100% untouched.
+  - Zero AI-generated capsule pills; clean architectural geometry throughout.
+  - Permanent event enrollment strictly enforced (events move into Purchased Events and cannot be unenrolled).
+- **Verification**: Verified compilation with `npx tsc --noEmit` (0 errors).
+
+**Files modified**
+- `components/registration/EventEnrollmentView.tsx`
+- `README.md`
+
+### 2026-11-01 — Refactored /enroll-event with Mid-Contrast Navy Blue & Subtle Purple Palette
+
+**Done**
+- **Applied Mid-Contrast Color Palette from Brand Guide (`components/registration/EventEnrollmentView.tsx`)**:
+  - Selected and integrated **Navy Blue (`#0A0F1E`)** and **Subtle Purple (`#7B2CFF`)** directly from the official brand palette.
+  - Eliminated flashy neon buttons and saturated glows in favor of mid-contrast, architectural surfaces:
+    - **Cultural & Creative Events**: Subtle Purple theme with `#0D0B16` container, `#100D1B` cards, `#7B2CFF`/70 top hairline, and `#22163B` buttons with `#E5D7FD` text.
+    - **Tech Events & Battles**: Navy Blue theme with `#0A0F1E` container, `#0B101D` cards, `#2E538B` hairline, and `#121E33` buttons with `#D0E2FF` text.
+    - **Purchased Events**: Mid-contrast Navy theme (`#0B101D` cards, `#2E538B` hairline), cleanly styled with no floating capsule badges.
+- **Removed "CONFIRMED" Tag & Capsule Pills**:
+  - Removed the bulky "CONFIRMED" badge from the Purchased Events section in favor of clean inline technical metadata (`📍 Venue • 📅 Date/Time`).
+  - Zero AI-generated capsule pills: all badges and buttons follow crisp, tactile rectangular geometry.
+- **Preserved User Greeting & Rule Constraints**:
+  - Preserved the greeting `Hi, {userName} :)` and `#FF6A00` styling with zero modifications.
+  - Enforced permanent event locking: once enrolled, events move strictly into Purchased Events and cannot be unenrolled.
+  - 100% frontend modifications; zero changes to backend routes, database schemas, or APIs.
+- **Verification**: Verified with `npx tsc --noEmit` (0 errors).
+
+**Files modified**
+- `components/registration/EventEnrollmentView.tsx`
+- `README.md`
+
+### 2026-11-01 — Updated Workshop Section Subtitle Copy
+
+**Done**
+- **Updated Workshop Section Subtitle (`components/packages/PackagesExplorer.tsx`)**:
+  - Rephrased the workshop schedule subtitle to the selected punchy version: *"All workshops run simultaneously at the exact same time — choose wisely, as you can only attend one."*
+- **Verification**: Verified compilation with `npx tsc --noEmit` (0 errors).
+
+**Files modified**
+- `components/packages/PackagesExplorer.tsx`
+- `README.md`
+
+### 2026-11-01 — Colorized Workshop Section & Fixed Poster Loading
+
+**Done**
+- **Colorized Workshop Section (`components/packages/PackagesExplorer.tsx`)**:
+  - Implemented craft-specific 60-30-10 color themes for each workshop card:
+    - **Kintsugi Art Workshop**: Solar Gold / Amber theme (`#FBB03B`) with `GOLDEN CRAFT` badge and golden rim halo.
+    - **Bouquet Making Workshop**: Rose Coral / Magenta theme (`#FF207D`) with `FLORAL ARTISTRY` badge and petal-warm halo.
+    - **Sand Wax Candle Making Workshop**: Luminous Electric Cyan theme (`#00E5FF`) with `LUMINOUS CRAFT` badge and cyan flame aura.
+  - Upgraded workshop container background with brand cosmic mesh gradients (`#FF6A00`, `#0066FF`, `#D8182B`) and a specular tri-color top rim line.
+  - Replaced plain dash list bullets with colorized luminous craft indicators.
+  - Replaced dull button with a high-energy brand gradient `Pay Now` CTA button (`#FF6A00` $\rightarrow$ `#FF3B2E` $\rightarrow$ `#D8182B`) with ambient hover glows.
+- **Fixed Remote Poster Rendering (`components/packages/PackagesExplorer.tsx`, `lib/data/packagesData.ts`)**:
+  - Added `unoptimized` flag on `<Image>` components to reliably load AWS S3 poster images directly without `/_next/image` proxy failures.
+  - Added robust fallback checks across `event.image_url` and `event.imageUrl`.
+- **Verification**: Verified compilation cleanly with `npx tsc --noEmit` (0 errors).
+
+**Files modified**
+- `components/packages/PackagesExplorer.tsx`
+- `lib/data/packagesData.ts`
+- `README.md`
+
+### 2026-10-31 — Added Back to Packages, Tech Events Section, Deleted Add Events & Checkout Page
+
+**Done**
+- **Added "Back to Packages" Link (`components/registration/EventEnrollmentView.tsx`)**:
+  - Placed a clean branded back link (`← Back to Packages`) on the left side above the `Hi, {userName} :)` greeting on `/register/enroll-event`.
+- **Added "TECH EVENTS" Section (`components/registration/EventEnrollmentView.tsx`)**:
+  - Implemented the new Tech Events section matching the Free Events section design (collapsible accordion dropdown, horizontal card carousel, solo & squad badges, live enrollment triggers). Currently showcasing the free technical events.
+- **Deleted "ADD EVENTS" Section (`components/registration/EventEnrollmentView.tsx`)**:
+  - Removed Section 04 and its dual-box event catalog and legacy cart controls from the enrollment view.
+- **Deleted Checkout Page (`app/register/checkout-event/page.tsx`, `next.config.ts`)**:
+  - Removed the checkout page file and configured permanent redirects in `next.config.ts` from `/register/checkout-event` and `/checkout-event` $\rightarrow$ `/packages`.
+- **Verification**: Verified zero TypeScript compilation errors via `npx tsc --noEmit`.
+
+**Files modified**
+- `components/registration/EventEnrollmentView.tsx`
+- `app/register/checkout-event/page.tsx` (deleted)
+- `next.config.ts`
+- `README.md`
+
+### 2026-10-31 — Unconditional Redirection to `/packages` After Verify Email
+
+**Done**
+- **Unconditional Redirection in Verify-Email API (`app/api/registration/verify-email/route.ts`)**:
+  - Unified the successful OTP response so that `redirect_url` always points to `"/packages"` regardless of whether the user has already purchased an entry ticket or not (`hasEntryTicket: true | false`).
+- **Verification**: Verified clean TypeScript compilation with `npx tsc --noEmit` (0 errors).
+
+**Files modified**
+- `app/api/registration/verify-email/route.ts`
+- `README.md`
+
+### 2026-10-31 — Removed Ticket Page, Rerouted to Packages, Added Enroll Button & Tech Battles Note
+
+**Done**
+- **Removed Ticket Page & Redirected to `/packages` (`app/register/entry-ticket/page.tsx`, `next.config.ts`, `components/events/EventDetailsView.tsx`)**:
+  - Replaced `/register/entry-ticket` with an immediate server-side redirect to `/packages`.
+  - Added permanent redirects in `next.config.ts` for `/register/entry-ticket` $\rightarrow$ `/packages` and `/ticket` $\rightarrow$ `/packages`.
+  - Updated the event details registration CTA link to point to `/packages`.
+- **Updated Email Verification & Enrollment Route Redirects (`app/api/registration/verify-email/route.ts`, `components/registration/OtpStepForm.tsx`, `app/api/enrollement/*`, `app/api/checkout/order-summary/route.ts`)**:
+  - Updated post-verification redirect URL to `/packages` upon successful OTP validation.
+  - Updated missing ticket redirect URLs from `/register/entry-ticket` to `/packages` across all enrollment and checkout order summary endpoints.
+- **Added "Go to Enroll page" Button on `/packages` (`components/packages/PackagesExplorer.tsx`)**:
+  - Dynamically evaluates if any package or workshop is purchased (`hasPaidAnyEvent`). If true, renders a clean text-only button beside the Packages title: `"Go to Enroll page →"` linking directly to `/register/enroll-event`.
+- **Added Tech Battles Card Note (`components/packages/PackageTicketCard.tsx`)**:
+  - Added the helper note inside the `TECH BATTLES` package card: *"Note: After purchasing the event, enroll the event from event page."*
+- **Verification**: Verified compilation cleanly via `npx tsc --noEmit` (0 errors).
+
+**Files modified**
+- `app/register/entry-ticket/page.tsx`
+- `next.config.ts`
+- `components/events/EventDetailsView.tsx`
+- `app/api/registration/verify-email/route.ts`
+- `components/registration/OtpStepForm.tsx`
+- `app/api/enrollement/enrolled-event/route.ts`
+- `app/api/enrollement/enroll-event/route.ts`
+- `app/api/enrollement/check-team-email/route.ts`
+- `app/api/checkout/order-summary/route.ts`
+- `components/packages/PackagesExplorer.tsx`
+- `components/packages/PackageTicketCard.tsx`
+- `README.md`
+
+### 2026-11-01 — Copy Polish & Navy/Purple Brand Color Restyling (No AI Capsules)
+
+**Done**
+- **Brand Palette Restyling (`components/registration/EventEnrollmentView.tsx`)**:
+  - Replaced green and orange accents with **Navy / Cobalt Blue** (`#0066FF` / `#2563EB`) and **Cosmic Violet / Purple** (`#7B2CFF` / `#6D28D9`) directly from the official brand style guide.
+  - **Purchased Events**: Deep navy backdrop (`#070912` / `#0A0D18`), solid cobalt hairline top accent (`bg-blue-600/80`), and blue status indicators.
+  - **Cultural & Creative Events**: Cosmic purple theme (`#7B2CFF`) with dark obsidian backing (`#070912`), solid purple top accent, and solid purple action buttons (`bg-[#7B2CFF]`).
+  - **Tech Events & Battles**: Cobalt Blue theme (`#0066FF`) with deep navy backing, solid cobalt top accent, and solid blue action buttons (`bg-[#0066FF]`).
+- **Eliminated AI-Generated Capsules**:
+  - Completely stripped out all rounded-full pill/capsule chips across all cards and section headers.
+  - Replaced with clean, architectural typography, inline technical metadata (`📍 Venue`, `📅 Date`, `👥 Team limits`), and crisp monospace headers.
+- **Text & Copy Polish**:
+  - Polished copy across all section titles and descriptions (`CULTURAL & CREATIVE EVENTS`, `TECH EVENTS & BATTLES`, `YOUR FESTIVAL PASSES`).
+  - **Preserved Exact User Greeting**: Kept the exact `Hi, {userName} :)` greeting and its original `#FF6A00` brand color intact without alterations.
+- **Verification**: Verified clean build via `npx tsc --noEmit` (0 errors).
+
+**Files modified**
+- `components/registration/EventEnrollmentView.tsx`
+- `README.md`
+
+### 2026-11-01 — Grounded Dark Aesthetics (Zero Neon Glare) & Permanent Event Enrollment
+
+**Done**
+- **Permanent Event Enrollment (`components/registration/EventEnrollmentView.tsx`)**:
+  - Events enrolled from **Free Events** or **Tech Events** are now permanently added to **Purchased Events** and strictly filtered out of the catalog (`!alreadyEnrolledIds.has(ev._id)`).
+  - Eliminated all unenrollment/withdrawal actions; once enrolled, events stay locked in the Purchased Events section.
+- **Bold Dark Color Palette & Removal of Neon Glare**:
+  - Removed all fuzzy neon glow box-shadows (`shadow-[0_0_...]`) and radioactive pastel greens/oranges.
+  - Replaced with deep matte obsidian/graphite surfaces (`#07090E`, `#0A0D15`), muted solid hairline borders (`border-white/[0.09]`), and grounded, authoritative accents:
+    - Deep forest green (`#059669` / `#047857`) for Purchased & Free Events.
+    - Deep burnt flame & crimson (`#C2410C` / `#991B1B`) for Tech Events.
+  - Replaced glowing pulsing dots with solid, crisp status markers.
+- **Verification**: Verified clean build via `npx tsc --noEmit` (0 errors).
+
+**Files modified**
+- `components/registration/EventEnrollmentView.tsx`
+- `README.md`
+
+### 2026-11-01 — Festival Decal Card Redesign Across `/enroll-event` & Removal of Redundant "CONFIRMED"
+
+**Done**
+- **Eliminated AI-Slop Tells & Redesigned Cards (`components/registration/EventEnrollmentView.tsx`)**:
+  - Replaced generic rounded dark navy boxes with high-contrast, industrial **Festival Access Badge Cards** across all three sections:
+    - **Purchased Events**: Removed the redundant `✓ CONFIRMED` tag. Solo cards now feature clean venue metadata and a technical `ENTRY SECURED` status chip. Team cards feature a tactile, interactive `[ View Squad (N) → ]` button with avatar details.
+    - **Free Events & Tech Events**: Implemented category-specific technical accession headers (`SOLO ENTRY` / `SQUAD ENTRY`), clean event category tags, bold uppercase festival typography (`font-subheading font-bold`), structured metadata pills (`SCHED`, `LOC`, `SQUAD`), and confident, high-contrast action CTA buttons (`ENROLL SOLO →` / `ENROLL SQUAD →`).
+    - **Withdraw / Enrolled States**: Replaced ambiguous toggle states with a clear status indicator (`ENROLLED • TAP TO WITHDRAW`) that transforms on hover to `WITHDRAW ENROLLMENT ×`.
+  - Added radiant top decal accent stripes (`#10B981` emerald for Free Events and `#FF6A00` flame gradient for Tech Events).
+- **Hardened Layout**:
+  - Maintained `line-clamp-2` overflow protection for event descriptions and prevented layout shift during carousel scroll and button hover states.
+  - Retained all existing props, state bindings, and modal logic with **zero modifications to routes, backend, or database schemas**.
+- **Verification**: Verified clean build via `npx tsc --noEmit` (0 errors).
+
+**Files modified**
+- `components/registration/EventEnrollmentView.tsx`
+- `README.md`
+
+### 2026-10-31 — Removed Entry Ticket Banner, Removed Ticket Venue/Date & Added Workshop Single-Session Subtitle
+
+**Done**
+- **Removed Entry Ticket Banner (`components/packages/PackagesExplorer.tsx`)**:
+  - Completely removed the horizontal `"ENTRY TICKET - 9 FREE EVENTS + TECHNICAL EVENTS | ₹299"` banner from the packages page.
+- **Removed Venue & Date from Package Ticket Cards (`components/packages/PackageTicketCard.tsx`)**:
+  - Removed the venue and schedule timing metadata strip, streamlining each package ticket to clean title, subtitle, bulleted inclusions, and pricing stub.
+- **Added Workshop Single-Access Subtitle (`components/packages/PackagesExplorer.tsx`)**:
+  - Added an `"ONLY 1 WORKSHOP ACCESSIBLE"` badge and descriptive subtitle to the Workshops header: *"All 3 workshops are scheduled on the same day and at the same time. You can only opt for and attend one workshop."*
+- **Verification**: Verified compilation cleanly via `npx tsc --noEmit` (0 errors).
+
+**Files modified**
+- `components/packages/PackagesExplorer.tsx`
+- `components/packages/PackageTicketCard.tsx`
+- `README.md`
+
+### 2026-10-31 — Synchronized Packages Page with Updated `/api/package` & Confirmed Complete Route Unblocking
+
+**Done**
+- **Observed & Integrated Updated `/api/package` Route (`lib/data/packagesData.ts`, `app/packages/page.tsx`)**:
+  - Examined the newly updated `GET /api/package` route: confirmed `packageEvent.eventIds = {}` removal, populated `package.events` with individual availability flags (`isSoldOut`, `fewRemaining`), and session-based `package.purchased` checking.
+  - Simplified and fortified event extraction in `getMergedEvents` to directly read from populated `pkg.events`, handling both individual and team registrations cleanly.
+  - Ensured seamless SSR with forwarded session cookies and dynamic client-side synchronization.
+- **Unblocked All Routes in `proxy.ts`**:
+  - Confirmed `proxy.ts` serves all pages directly (`NextResponse.next()`) with zero countdown rewrites across `/events`, `/register/*`, `/packages`, and payment routes.
+- **Verification**: Verified compilation via `npx tsc --noEmit` (0 errors).
+
+**Files modified**
+- `lib/data/packagesData.ts`
+- `proxy.ts`
+- `README.md`
+
+### 2026-10-31 — Streamlined Workshop Card Details & Added Visualatic Atmospheric Dark Background
+
+**Done**
+- **Removed Cluttered Metadata from Workshop Cards (`components/packages/PackagesExplorer.tsx`)**:
+  - Removed location (`venue`), schedule timing (`date_time`), and perk text from all workshop cards.
+  - Replaced with ticket-style bulleted inclusions (`- 3 Day Entry`, `- 9 Free Events`, `- ${ws.title} Access`) matching the upper ticket layout.
+  - Added clean faded divider line and structured bottom pricing strip (`3-DAY ENTRY + WORKSHOP` / `₹{ws.fee}`).
+- **Elevated Workshops Container with Visualatic Atmospheric Dark Background**:
+  - Layered deep cosmic void background gradient with dual ambient radial glow meshes (`#FF6A00` amber aura top-right and `#D8182B` crimson ember aura bottom-left).
+  - Added polished specular mirror top rim highlight, fine micro-grid pattern texture, and elevated dark glass card styling (`bg-[#0a0c16]/85 backdrop-blur-md border border-white/[0.08]`).
+- **Verification**: Verified compilation via `npx tsc --noEmit` (0 errors).
+
+**Files modified**
+- `components/packages/PackagesExplorer.tsx`
+- `README.md`
+
+### 2026-10-31 — Unblocked All Pages in `proxy.ts` & Removed Packages from Navbar
+
+**Done**
+- **Unblocked All Pages (`proxy.ts`)**:
+  - Removed the catch-all countdown rewrite so all pages across the site (`/events`, `/events/[eventSlug]`, `/packages`, `/register/*`, `/payment/*`, etc.) are served directly.
+  - Kept canonical redirects (`/organizer` $\rightarrow$ `/organizers`, `/home` $\rightarrow$ `/`, `/package` $\rightarrow$ `/packages`) and `/payments/create-order` rewrite to `/api/payments/create-order`.
+- **Removed Packages from Navbar (`components/navbar/Navbar.tsx`)**:
+  - Removed `{ label: 'Packages', href: '/packages' }` from `navLinks`, keeping the navigation bar focused on Home, Events, Organizers, and Contact.
+- **Verification**: Verified TypeScript compilation cleanly via `npx tsc --noEmit` (0 errors).
+
+**Files modified**
+- `proxy.ts`
+- `components/navbar/Navbar.tsx`
+- `README.md`
+
+### 2026-10-31 — Integrated `GET /api/package` and `POST /api/payments/create-order` on `/packages`
+
+**Done**
+- **Connected `/packages` to `GET /api/package` (`app/packages/page.tsx`, `lib/data/packagesData.ts`, `components/packages/PackagesExplorer.tsx`)**:
+  - Replaced direct database queries with `GET /api/package` (both SSR with forwarded cookies and client synchronization).
+  - Sorted all packages in ascending order of `package.indexPackage`.
+  - Separated all `"WORKSHOP PASS"` / `"WORKSHOP PASSES"` packages into the **Workshops** container while keeping regular passes in the **Packages** ticket grid.
+  - Mapped `package.title` as the package card title, `event.title` as the card subtitle below it, and populated event inclusions, venue, date/time, prize, and poster imagery.
+- **Implemented `purchased`, `isSoldOut`, and `fewRemaining` States (`components/packages/PackageTicketCard.tsx`, `components/packages/PackagesExplorer.tsx`)**:
+  - When `event.purchased` is `true`, the button displays `"Purchased"` and is disabled.
+  - When `isSoldOut` is `true`, the button displays `"Sold Out"` with a solid red background (`#D8182B`) and is disabled.
+  - When `fewRemaining` is `true` (and not sold out), displays a glowing `"FEW REMAINING"` badge and notice on the card.
+- **Wired `Pay Now` to Create Order with `{ packageId }` & Single-Click Lock**:
+  - Clicking `"Pay Now"` on any package card or the selected workshop immediately locks/disables the button to prevent double clicks and sends `POST /api/payments/create-order` (also rewritten from `/payments/create-order` in `proxy.ts`) with `{ packageId }` in the request body.
+- **Verification**: Verified TypeScript compilation via `npx tsc --noEmit` (0 errors).
+
+**Files modified**
+- `lib/data/packagesData.ts`
+- `app/packages/page.tsx`
+- `components/packages/PackageTicketCard.tsx`
+- `components/packages/PackagesExplorer.tsx`
+- `proxy.ts`
+- `README.md`
+
 ### 2026-10-31 — Added Society Credits Footer Across All Pages
 
 **Done**

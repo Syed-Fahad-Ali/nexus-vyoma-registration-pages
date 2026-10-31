@@ -12,7 +12,7 @@ import Package from "@/database/schema/package.schema";
 
 import cashfree from "@/utilities/payment/client";
 import { verifyJWT } from "@/utilities/jwt";
-import { TokenData } from "@/app/api/enrollement/enroll-event/route";
+import { TokenData } from "@/app/api/enrollement/enrolled-event/route";
 
 export async function POST(request: NextRequest) {
   try {

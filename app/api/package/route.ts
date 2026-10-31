@@ -9,7 +9,7 @@ import Event from "@/database/schema/event.schema";
 import mongoose from "mongoose";
 
 import { verifyJWT } from "@/utilities/jwt";
-import { TokenData } from "../enrollement/enroll-event/route";
+import { TokenData } from "../enrollement/enrolled-event/route";
 import EnrolledTeamEvent from "@/database/schema/enrolled-team-event.schema";
 import EntryTicket from "@/database/schema/entry-ticket.schema";
 
