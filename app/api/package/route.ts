@@ -11,6 +11,7 @@ import mongoose from "mongoose";
 import { verifyJWT } from "@/utilities/jwt";
 import { TokenData } from "../enrollement/enroll-event/route";
 import EnrolledTeamEvent from "@/database/schema/enrolled-team-event.schema";
+import EntryTicket from "@/database/schema/entry-ticket.schema";
 
 export async function POST(request: NextRequest) {
     try {
@@ -204,10 +205,13 @@ export async function GET(request: NextRequest) {
             }, { status: 404 });
         }
 
+
         let response: any[] = [];
         for (let i = 0; i < packages.length; i++) {
+            let purchased = false;
             let isSoldOut = false;
             let fewRemaining = false;
+
             let eventList: any[] = [];
 
             const packageEvent = packages[i];
@@ -227,7 +231,6 @@ export async function GET(request: NextRequest) {
                     });
 
                     if (participantLimit <= count) {
-                        fewRemaining = true;
                         isSoldOut = true;
                     }
                     else if (participantLimit - count <= 10) {
@@ -238,10 +241,20 @@ export async function GET(request: NextRequest) {
                         fewRemaining = false;
                     }
 
+                    const enrolledEvent = await EnrolledIndividualEvent.findOne({
+                        event_id: event._id,
+                        register_user_id: user._id,
+                        isPaid: true
+                    })
+
+                    if (enrolledEvent && packageEvent.title !== "TECH BATTLES") {
+                        purchased = true;
+                    }
+
                     eventList.push({
                         ...event.toObject(),
                         isSoldOut,
-                        fewRemaining
+                        fewRemaining,
                     });
                 } else if (participantType === "team") {
                     const count = await EnrolledTeamEvent.countDocuments({
@@ -271,8 +284,18 @@ export async function GET(request: NextRequest) {
                 }
             }
 
+            if (packageEvent.title === "TECH BATTLES") {
+                const entryTicket = await EntryTicket.findOne({ userId: user._id, isPaid: true, isTechEvents: true });
+
+                if (entryTicket) {
+                    purchased = true;
+                }
+            }
+
+            packageEvent.eventIds = {};
+
             response.push({
-                package: { ...packageEvent.toObject(), events: eventList }
+                package: { ...packageEvent.toObject(), events: eventList, purchased }
             });
         }
 

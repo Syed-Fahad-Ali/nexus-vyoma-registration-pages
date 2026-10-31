@@ -94,35 +94,20 @@ export async function POST(request: NextRequest) {
         cookieStore.set("nv-session-temp", tempToken, { httpOnly: true, path: "/", sameSite: "strict", secure: process.env.NODE_ENV === "production", maxAge: 115 * 60 })
 
         const userEnrtyTicket = await EntryTicket.findOne({ userId: user._id, isPaid: true })
-        if (!userEnrtyTicket) {
-            return NextResponse.json({
-                message: "OTP verified successfully",
-                data: {
-                    user: {
-                        id: user._id,
-                        name: user.full_name,
-                        email: user.email,
-                    },
-                },
-                error: null,
-                redirect: true,
-                redirect_url: "/register/entry-ticket"
-            }, { status: 200 });
-        }
 
         return NextResponse.json({
             message: "OTP verified successfully",
-
             data: {
                 user: {
                     id: user._id,
                     name: user.full_name,
                     email: user.email,
                 },
+                hasEntryTicket: !!userEnrtyTicket,
             },
             error: null,
             redirect: true,
-            redirect_url: "/register/enroll-event"
+            redirect_url: "/packages"
         }, { status: 200 });
 
     } catch (error) {

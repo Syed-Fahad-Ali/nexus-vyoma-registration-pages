@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
                     data: null,
                     error: "Entry ticket does not exist",
                     redirect: true,
-                    redirectUrl: "/register/entry-ticket",
+                    redirectUrl: "/packages",
                 },
                 { status: 404 });
         }
