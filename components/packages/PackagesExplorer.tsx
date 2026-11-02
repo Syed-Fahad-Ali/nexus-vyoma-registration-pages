@@ -183,6 +183,19 @@ export default function PackagesExplorer({
   // Single-click lock for "Pay Now" buttons
   const isSubmittingRef = useRef<boolean>(false);
   const [submittingPackageId, setSubmittingPackageId] = useState<string | null>(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState<boolean>(false);
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/registration/logout', { method: 'POST' });
+    } catch {
+      // ignore
+    }
+    document.cookie = 'nv-session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+    document.cookie = 'nv-session-temp=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+    router.push('/register/check-email');
+    router.refresh();
+  };
 
   // Fetch latest packages & user purchase/sold-out status from GET /api/package
   useEffect(() => {
@@ -364,28 +377,97 @@ export default function PackagesExplorer({
         </div>
       )}
 
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="logout-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setShowLogoutConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl border border-white/[0.12] bg-[#090C16] p-6 flex flex-col gap-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col gap-1.5 text-center">
+              <div className="w-10 h-10 rounded-lg bg-red-500/10 text-red-400 mx-auto flex items-center justify-center mb-1 border border-red-500/20">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </div>
+              <h3 id="logout-dialog-title" className="font-subheading font-medium text-lg text-white">
+                Log Out Confirmation
+              </h3>
+              <p className="text-xs text-zinc-400">
+                Are you sure you want to log out of your festival session?
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(false)}
+                className="py-2.5 px-4 rounded-lg text-xs font-mono font-medium uppercase tracking-wider text-zinc-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="py-2.5 px-4 rounded-lg text-xs font-mono font-bold uppercase tracking-wider text-white bg-red-600 hover:bg-red-500 transition-all cursor-pointer shadow-md"
+              >
+                Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ============================================================ */}
       {/* 01 — PACKAGES SECTION: Aligned by indexPackage               */}
       {/* ============================================================ */}
       <section aria-label="Festival Packages" className="w-full flex flex-col gap-4 sm:gap-5">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-1">
-          <div className="flex flex-col gap-1">
+        <div className="flex flex-row items-end justify-between gap-3 pb-1">
+          <div className="flex flex-col gap-1 min-w-0">
             <PackagesTitleRolling />
             <p className="font-mono text-xs sm:text-sm font-bold tracking-[0.2em] text-zinc-300 uppercase mt-0.5">
               PACKAGES:
             </p>
           </div>
 
-          {hasPaidAnyEvent && (
+          <div className="flex flex-col items-end text-right gap-1.5 shrink-0 self-end ml-auto">
             <button
               type="button"
-              onClick={() => router.push('/register/enroll-event')}
-              className="inline-flex items-center gap-1.5 p-0 bg-transparent border-0 text-[#FF6A00] hover:text-[#FFA040] hover:underline font-mono text-xs sm:text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer outline-none focus-visible:underline"
+              onClick={() => setShowLogoutConfirm(true)}
+              className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-subheading font-medium tracking-wider uppercase text-red-400 hover:text-red-300 transition-colors cursor-pointer shrink-0 py-1"
             >
-              <span>Go to Enroll page</span>
-              <span className="text-sm">&rarr;</span>
+              <span>Log out</span>
+              <svg
+                className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-current"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                />
+              </svg>
             </button>
-          )}
+
+            {hasPaidAnyEvent && (
+              <button
+                type="button"
+                onClick={() => router.push('/register/enroll-event')}
+                className="inline-flex items-center gap-1.5 p-0 bg-transparent border-0 text-[#FF6A00] hover:text-[#FFA040] hover:underline font-mono text-xs sm:text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer outline-none focus-visible:underline"
+              >
+                <span>Go to Enroll page</span>
+                <span className="text-sm">&rarr;</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {isLoading && packages.length === 0 ? (
@@ -632,7 +714,7 @@ export default function PackagesExplorer({
                       </li>
                       <li className="flex items-center gap-2">
                         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${theme.bulletDot}`} />
-                        <span className="text-zinc-200">9 Free Events Included</span>
+                        <span className="text-zinc-200">7 Free Events Included</span>
                       </li>
                       <li className="flex items-center gap-2">
                         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${theme.bulletDot}`} />

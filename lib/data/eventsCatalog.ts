@@ -20,6 +20,8 @@ export interface CatalogEvent {
   isFlagship: boolean;
   statusNote?: string;
   index?: number | null;
+  isTechEvent?: boolean;
+  dateTime?: string;
 }
 
 export const SAMPLE_EVENT: CatalogEvent = {
@@ -343,6 +345,8 @@ export interface ApiEvent {
   max_team_size?: number;
   requirements?: string[];
   index?: number | null;
+  isTechEvent?: boolean;
+  dateTime?: string;
 }
 
 /**
@@ -453,7 +457,35 @@ export function mapApiEventToCatalog(doc: ApiEvent, index = 0): CatalogEvent {
     prizePool: prize && prize.toLowerCase() !== 'no prize' ? prize : 'N/A',
     imageUrl: doc.image_url || undefined,
     isFlagship: Boolean(doc.isFlatship),
+    isTechEvent: Boolean(doc.isTechEvent),
+    dateTime: doc.date_time,
     statusNote: isFree ? 'Included with official festival entry pass.' : undefined,
     index: eventIndex,
   };
+}
+
+/**
+ * Sorts events chronologically by their `dateTime` ISO string in ascending order.
+ * Falls back to index if timestamps match or are missing.
+ */
+export function sortEventsByDateTime<T extends { dateTime?: string; index?: number | null }>(
+  items: T[]
+): T[] {
+  return [...items].sort((a, b) => {
+    const timeA = a.dateTime ? new Date(a.dateTime).getTime() : 0;
+    const timeB = b.dateTime ? new Date(b.dateTime).getTime() : 0;
+
+    const validA = !Number.isNaN(timeA) && timeA > 0;
+    const validB = !Number.isNaN(timeB) && timeB > 0;
+
+    if (validA && validB) {
+      if (timeA !== timeB) {
+        return timeA - timeB;
+      }
+      return (a.index ?? 999) - (b.index ?? 999);
+    }
+    if (validA && !validB) return -1;
+    if (!validA && validB) return 1;
+    return (a.index ?? 999) - (b.index ?? 999);
+  });
 }

@@ -22,6 +22,23 @@ export default function EventDetailsView({ event }: EventDetailsViewProps) {
   );
 
   const renderActionArea = (extraClassName = '') => {
+    if (event.isTechEvent) {
+      return (
+        <div className={`flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 ${extraClassName}`}>
+          <div className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-lg border border-[#FF6A00]/40 bg-[#FF6A00]/10 text-[#FF6A00] font-mono text-xs sm:text-sm font-semibold tracking-wide select-none">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#FF6A00] animate-pulse" />
+            <span>INCLUDED IN TECH PASS</span>
+          </div>
+          <Link
+            href="/packages"
+            className="inline-flex items-center justify-center min-h-[44px] px-5 py-2.5 rounded-lg bg-[#FF6A00] text-black hover:bg-[#FF7A1A] active:scale-[0.98] font-sans font-bold text-xs sm:text-sm tracking-wider uppercase transition-all duration-200 select-none shadow-[0_0_20px_rgba(255,106,0,0.25)]"
+          >
+            <span>GET TECH PASS</span>
+          </Link>
+        </div>
+      );
+    }
+
     if (isFree) {
       return (
         <div className={`flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 ${extraClassName}`}>
@@ -113,12 +130,27 @@ export default function EventDetailsView({ event }: EventDetailsViewProps) {
                 <span className="w-1.5 h-1.5 rounded-full bg-[#FF6A00]" />
                 EVENT FEE
               </span>
-              <span className="font-sans text-sm sm:text-base font-extrabold text-white tracking-tight mt-0.5">
-                {isFree ? 'FREE' : event.feeText || '₹200'}
-              </span>
-              {isFree && (
-                <span className="font-mono text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-[#FF6A00] mt-0.5 select-none">
-                  Included in Entry Ticket
+              {event.isTechEvent ? (
+                <>
+                  <span className="font-sans text-xs sm:text-sm font-extrabold text-white tracking-tight mt-0.5 leading-snug">
+                    Included in Tech Pass
+                  </span>
+                  <span className="font-mono text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-[#FF6A00] mt-0.5 select-none">
+                    With Tech Battles Pass
+                  </span>
+                </>
+              ) : isFree ? (
+                <>
+                  <span className="font-sans text-sm sm:text-base font-extrabold text-white tracking-tight mt-0.5">
+                    FREE
+                  </span>
+                  <span className="font-mono text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-[#FF6A00] mt-0.5 select-none">
+                    Included in Entry Ticket
+                  </span>
+                </>
+              ) : (
+                <span className="font-sans text-sm sm:text-base font-extrabold text-white tracking-tight mt-0.5">
+                  {event.feeText || '₹200'}
                 </span>
               )}
             </div>
@@ -251,10 +283,10 @@ export default function EventDetailsView({ event }: EventDetailsViewProps) {
         </div>
 
         {/* Status Note / Disclaimer */}
-        {event.statusNote && (
+        {(event.isTechEvent ? 'Included with official Tech Battles festival pass.' : event.statusNote) && (
           <div className="w-full mt-4 sm:mt-6 text-center sm:text-right">
             <p className="font-sans text-[11px] text-zinc-500 tracking-wide select-none">
-              {event.statusNote}
+              {event.isTechEvent ? 'Included with official Tech Battles festival pass.' : event.statusNote}
             </p>
           </div>
         )}

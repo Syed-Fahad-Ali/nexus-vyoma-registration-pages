@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import type { SerializedPackage } from '@/lib/data/packagesData';
 
 interface PackageTicketCardProps {
@@ -179,6 +180,17 @@ export default function PackageTicketCard({
                 <span className="break-words line-clamp-2">{item}</span>
               </li>
             ))}
+            {isTechBattle && (
+              <li className="pt-1 list-none">
+                <Link
+                  href="/events?techPass=true"
+                  className="inline-flex items-center justify-between w-full px-2.5 py-1.5 rounded-md bg-[#FF6A00]/15 hover:bg-[#FF6A00]/25 border border-[#FF6A00]/50 text-[#FFA040] hover:text-white text-[9.5px] xs:text-[10px] font-mono font-bold uppercase tracking-wider transition-all duration-150 group/cta shadow-[0_0_12px_rgba(255,106,0,0.15)] cursor-pointer"
+                >
+                  <span>EXPLORE 15 TECH EVENTS</span>
+                  <span className="text-xs transition-transform group-hover/cta:translate-x-0.5">&rarr;</span>
+                </Link>
+              </li>
+            )}
           </ul>
 
           {/* Tech Battles Special Enrollment Note */}

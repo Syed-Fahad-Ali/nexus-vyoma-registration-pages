@@ -43,6 +43,78 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Newest first.
 
+### 2026-11-02 — Right-Aligned Header Actions on Mobile (/packages)
+
+**Done**
+- **Mobile Actions Right-Alignment (`components/packages/PackagesExplorer.tsx`)**:
+  - Switched packages header layout to `flex-row items-end justify-between` on all screen widths.
+  - Aligned `LOG OUT` and `GO TO ENROLL PAGE →` directly to the right side (`items-end text-right ml-auto`) on mobile viewports.
+- **Validation**:
+  - Confirmed `npx tsc --noEmit` compiles cleanly with zero errors.
+
+### 2026-11-02 — Header Actions Stacking & Shortened Tech Events CTA Pill
+
+**Done**
+- **Stacked Header Actions on `/packages` (`components/packages/PackagesExplorer.tsx`)**:
+  - Reordered actions to place `LOG OUT` at the top and `GO TO ENROLL PAGE →` directly underneath.
+- **Shortened Tech Events CTA on Ticket Card (`components/packages/PackageTicketCard.tsx`)**:
+  - Replaced the multi-line bullet link with a crisp, high-contrast CTA pill button: `EXPLORE 15 TECH EVENTS →`.
+  - Added subtle orange glow hover animation (`bg-[#FF6A00]/15`, `border-[#FF6A00]/50`, `text-[#FFA040]`).
+- **Validation**:
+  - Confirmed `npx tsc --noEmit` compiles cleanly with zero errors.
+
+### 2026-11-02 — Synced Tech Pass Filter with URL Query Param
+
+**Done**
+- **URL Query Param Sync (`components/events/EventsExplorer.tsx`)**:
+  - Bound the `"Tech Pass Events"` filter to `?techPass=true` using Next.js `router.replace(..., { scroll: false })`.
+  - Added bi-directional synchronization so visiting or sharing `/events?techPass=true` immediately applies the filter and activates chronological `date_time` sorting.
+  - Updated `handleClearFilters` to remove `techPass` alongside `category` from the URL.
+- **Deep Link from Packages (`components/packages/PackageTicketCard.tsx`)**:
+  - Pointed the Tech Battles card link `"Click here to check out 15 exclusive tech events →"` directly to `/events?techPass=true`.
+- **Validation**:
+  - Confirmed `npx tsc --noEmit` compiles cleanly with zero errors.
+
+### 2026-11-02 — /packages Logout, 7 Free Events & Tech Battles Inclusions
+
+**Done**
+- **Log Out Button & Modal on `/packages` (`components/packages/PackagesExplorer.tsx`)**:
+  - Added Log out button to top header bar matching `/register/enroll-event`.
+  - Added session logout confirmation dialog that expires session cookies and redirects to `/register/check-email`.
+- **7 Free Events Update (`lib/data/packagesData.ts`, `components/packages/PackagesExplorer.tsx`)**:
+  - Updated all package ticket and workshop inclusions from `"9 Free Events"` to `"7 Free Events"` (and `"7 Free Events Included"`).
+- **Tech Battles Inclusions & Catalogue Link (`lib/data/packagesData.ts`, `components/packages/PackageTicketCard.tsx`)**:
+  - Added `"Exclusive 15 Events Included"` to Tech Battles pass inclusions.
+  - Added clickable link `"Click here to check out 15 exclusive tech events →"` pointing to `/events`.
+- **Validation**:
+  - Confirmed `npx tsc --noEmit` compiles cleanly with zero errors.
+
+### 2026-11-02 — Added "Tech Pass Events" Filter with Chronological date_time Sorting
+
+**Done**
+- **Catalog Model & Sorting Extension (`lib/data/eventsCatalog.ts`)**:
+  - Added `dateTime?: string;` to `CatalogEvent` to store the original `date_time` ISO timestamp.
+  - Exported `sortEventsByDateTime()` to sort events in ascending chronological order, falling back to index.
+- **Added Tech Pass Events Filter (`components/events/EventsExplorer.tsx`)**:
+  - Added `"Tech Pass Events"` toggle filter to the filter panel (available on both desktop stationary sidebar and mobile drawer).
+  - Configured `filteredEvents` to filter for `event.isTechEvent === true` when active.
+  - Dynamically switches sorting to `sortEventsByDateTime()` when the Tech Pass Events filter is applied, ordering events chronologically by date and time.
+- **Validation**:
+  - Confirmed `npx tsc --noEmit` compiles cleanly with zero errors.
+
+### 2026-11-02 — Added "Included in Tech Pass" to /events/:id Details Page
+
+**Done**
+- **Catalog Model & Schema Extension (`lib/data/eventsCatalog.ts`)**:
+  - Added `isTechEvent?: boolean;` to `ApiEvent` and `CatalogEvent` interfaces.
+  - Mapped `isTechEvent: Boolean(doc.isTechEvent)` in `mapApiEventToCatalog()`.
+- **Event Fee & Action Area Display (`components/events/EventDetailsView.tsx`)**:
+  - In the **EVENT FEE** section, if `event.isTechEvent` is `true`, rendered `"Included in Tech Pass"` with sub-label `"With Tech Battles Pass"`.
+  - In `renderActionArea()`, added `"INCLUDED IN TECH PASS"` badge with a direct CTA link `"GET TECH PASS"` navigating to `/packages`.
+  - Provided bottom disclaimer note for tech events indicating festival pass inclusion.
+- **Validation**:
+  - Confirmed `npx tsc --noEmit` compiles cleanly with zero errors.
+
 ### 2026-11-01 — Removed Tech Event Prices & Updated Ticket Inclusions Wording
 
 **Done**

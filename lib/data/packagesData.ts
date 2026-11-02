@@ -285,11 +285,19 @@ export function parseApiPackagesData(rawItems?: RawPackageApiItem[] | null): Pac
       const inclusions: string[] = [];
       if (isEntryTicket) {
         inclusions.push('3 Days Entry');
-        inclusions.push('9 Free Events');
+        inclusions.push('7 Free Events');
+      }
+      const isTechPkg =
+        pkgTitle.trim().toUpperCase() === 'TECH BATTLES' ||
+        pkgTitle.trim().toUpperCase().includes('TECH BATTLE');
+      if (isTechPkg) {
+        inclusions.push('Exclusive 15 Events Included');
       }
       if (eventTitles.length > 0) {
         for (const evTitle of eventTitles) {
-          inclusions.push(`${evTitle} Access`);
+          if (!isTechPkg || !evTitle.trim().toUpperCase().includes('TECH BATTLE')) {
+            inclusions.push(`${evTitle} Access`);
+          }
         }
       }
 

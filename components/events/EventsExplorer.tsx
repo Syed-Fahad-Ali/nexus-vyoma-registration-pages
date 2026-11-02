@@ -2,7 +2,11 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { sortEventsByIndex, type CatalogEvent } from '@/lib/data/eventsCatalog';
+import {
+  sortEventsByIndex,
+  sortEventsByDateTime,
+  type CatalogEvent,
+} from '@/lib/data/eventsCatalog';
 import EventCard from './EventCard';
 import EventsTitleRolling from './EventsTitleRolling';
 
@@ -23,7 +27,14 @@ export default function EventsExplorer({ events }: EventsExplorerProps) {
 
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [flagshipOnly, setFlagshipOnly] = useState<boolean>(false);
+  const [techPassOnly, setTechPassOnly] = useState<boolean>(() => {
+    return searchParams.get('techPass') === 'true';
+  });
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    setTechPassOnly(searchParams.get('techPass') === 'true');
+  }, [searchParams]);
 
   const filterAsideRef = useRef<HTMLElement>(null);
   const [asideHeight, setAsideHeight] = useState<number | null>(null);
@@ -105,11 +116,29 @@ export default function EventsExplorer({ events }: EventsExplorerProps) {
     );
   };
 
+  // Toggle Tech Pass selection (updates the URL)
+  const handleToggleTechPass = (checked: boolean) => {
+    setTechPassOnly(checked);
+    const params = new URLSearchParams(searchParams.toString());
+    if (checked) {
+      params.set('techPass', 'true');
+    } else {
+      params.delete('techPass');
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
+
   // Reset all filters
   const handleClearFilters = () => {
     setSelectedDates([]);
     setFlagshipOnly(false);
-    writeCategoriesToUrl([]);
+    setTechPassOnly(false);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('category');
+    params.delete('techPass');
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
   // Filter computation
@@ -128,6 +157,11 @@ export default function EventsExplorer({ events }: EventsExplorerProps) {
         return false;
       }
 
+      // Tech Pass Events filter
+      if (techPassOnly && !event.isTechEvent) {
+        return false;
+      }
+
       // Flagship filter
       if (flagshipOnly && !event.isFlagship) {
         return false;
@@ -136,14 +170,25 @@ export default function EventsExplorer({ events }: EventsExplorerProps) {
       return true;
     });
 
+    // When Tech Pass Events filter is active, sort strictly by date_time
+    if (techPassOnly) {
+      return sortEventsByDateTime(matched);
+    }
+
     return sortEventsByIndex(matched);
-  }, [events, selectedDates, selectedCategories, flagshipOnly]);
+  }, [events, selectedDates, selectedCategories, flagshipOnly, techPassOnly]);
 
   const hasActiveFilters =
-    selectedDates.length > 0 || selectedCategories.length > 0 || flagshipOnly;
+    selectedDates.length > 0 ||
+    selectedCategories.length > 0 ||
+    flagshipOnly ||
+    techPassOnly;
 
   const activeFilterCount =
-    selectedDates.length + selectedCategories.length + (flagshipOnly ? 1 : 0);
+    selectedDates.length +
+    selectedCategories.length +
+    (flagshipOnly ? 1 : 0) +
+    (techPassOnly ? 1 : 0);
 
   // Reusable filter controls (rendered permanently on desktop, inside collapsible drawer on mobile)
   const renderFilterControls = (isMobile = false) => (
@@ -208,8 +253,44 @@ export default function EventsExplorer({ events }: EventsExplorerProps) {
         </div>
       </div>
 
-      {/* 3. FLAGSHIP ONLY CHECKBOX */}
-      <div className="pt-1">
+      {/* 3. EVENT TYPE TOGGLES */}
+      <div className="flex flex-col gap-1 pt-1">
+        {/* Tech Pass Events Checkbox */}
+        <label className="inline-flex items-center gap-3 cursor-pointer select-none group min-h-[44px]">
+          <input
+            type="checkbox"
+            checked={techPassOnly}
+            onChange={(e) => handleToggleTechPass(e.target.checked)}
+            className="sr-only"
+          />
+          <div
+            className={`w-4 h-4 rounded flex items-center justify-center border transition-all duration-200 ${
+              techPassOnly
+                ? 'bg-[#FF6A00] border-[#FF6A00] text-black'
+                : 'bg-[#12141c] border-zinc-700 group-hover:border-zinc-500'
+            }`}
+          >
+            {techPassOnly && (
+              <svg
+                className="w-3 h-3 text-black stroke-[3]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+            )}
+          </div>
+          <span className="text-xs sm:text-sm font-medium text-zinc-200 group-hover:text-white transition-colors">
+            Tech Pass Events
+          </span>
+        </label>
+
+        {/* Flagship only Checkbox */}
         <label className="inline-flex items-center gap-3 cursor-pointer select-none group min-h-[44px]">
           <input
             type="checkbox"
