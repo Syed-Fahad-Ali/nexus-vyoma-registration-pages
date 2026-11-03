@@ -1,101 +1,142 @@
-import cashfree from "@/utilities/payment/client";
-import { unstable_rethrow } from "next/navigation";
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_rethrow } from "next/navigation";
+import crypto from "crypto";
 
-export async function GET(request: NextRequest) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+import razorpay from "@/utilities/payment/client";
 
-    if (!appUrl) {
-        return NextResponse.json(
-            { message: "Application URL is not configured" },
-            { status: 500 }
-        );
+const isProduction = process.env.NODE_ENV === "production";
+
+/**
+ * POST /api/payments/return
+ *
+ * Called by the client after a successful Razorpay checkout.
+ * Receives { razorpay_order_id, razorpay_payment_id, razorpay_signature }
+ * and verifies the payment server-side before redirecting.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+      body as {
+        razorpay_order_id?: string;
+        razorpay_payment_id?: string;
+        razorpay_signature?: string;
+      };
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return NextResponse.json(
+        {
+          message: "Missing required payment verification fields",
+          status: 400,
+          data: null,
+          error: "MISSING_PAYMENT_FIELDS",
+          redirect: true,
+          redirectUrl: "/payment/failure?reason=missing_fields",
+        },
+        { status: 400 },
+      );
     }
 
-    // Read request data OUTSIDE try/catch. Accessing searchParams is a "dynamic"
-    // API, and Next.js signals it by throwing an internal error. If that throw
-    // happens inside try/catch, our catch block swallows it.
-    const orderId = request.nextUrl.searchParams.get("order_id");
-    const acceptsHtml = request.headers.get("accept")?.includes("text/html") ?? true;
+    // ── 1. Verify Razorpay signature (HMAC-SHA256, timing-safe) ──
+    const keySecret = isProduction
+      ? process.env.PAYMENT_KEY_SECRET
+      : process.env.SANDBOX_PAYMENT_KEY_SECRET;
 
-    if (!orderId) {
-        if (acceptsHtml) {
-            return NextResponse.redirect(
-                new URL("/payment/failure?reason=missing_order_id", request.url)
-            );
-        }
-        return NextResponse.json({
-            message: "Missing order_id in query parameters",
-            status: 400,
-            data: null,
-            error: "Missing order_id in query parameters",
-            redirect: true,
-            redirectUrl: "/payment/failure?reason=missing_order_id"
-        }, { status: 400 });
+    if (!keySecret) {
+      console.error("Payment key secret is not configured");
+      return NextResponse.json(
+        {
+          message: "Payment verification is not configured",
+          status: 500,
+          data: null,
+          error: "VERIFICATION_NOT_CONFIGURED",
+          redirect: true,
+          redirectUrl: "/payment/failure?reason=verification_error",
+        },
+        { status: 500 },
+      );
     }
 
-    try {
-        // Verify the order directly with Cashfree.
-        const response = await cashfree.PGFetchOrder(orderId);
-        const orderStatus = response?.data?.order_status;
+    const expectedSignature = crypto
+      .createHmac("sha256", keySecret)
+      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .digest("hex");
 
-        if (orderStatus === "PAID") {
-            if (acceptsHtml) {
-                return NextResponse.redirect(
-                    new URL(`/payment/success?order_id=${encodeURIComponent(orderId)}`, request.url)
-                );
-            }
-            return NextResponse.json({
-                message: "Payment successful",
-                status: 200,
-                data: null,
-                error: null,
-                redirect: true,
-                redirectUrl: `/payment/success?order_id=${encodeURIComponent(orderId)}`
-            }, { status: 200 });
-        }
+    const expectedBuf = Buffer.from(expectedSignature, "hex");
+    const receivedBuf = Buffer.from(razorpay_signature, "hex");
 
-        if (orderStatus === "EXPIRED" || orderStatus === "TERMINATED") {
-            if (acceptsHtml) {
-                return NextResponse.redirect(
-                    new URL(`/payment/failure?order_id=${encodeURIComponent(orderId)}`, request.url)
-                );
-            }
-            return NextResponse.json({
-                message: "Payment failed",
-                status: 400,
-                data: null,
-                error: "Payment failed",
-                redirect: true,
-                redirectUrl: `/payment/failure?order_id=${encodeURIComponent(orderId)}`
-            }, { status: 400 });
-        }
+    const isSignatureValid =
+      expectedBuf.length === receivedBuf.length &&
+      crypto.timingSafeEqual(expectedBuf, receivedBuf);
 
-        // The payment is not confirmed as successful or definitively failed (pending or user dropped).
-        return NextResponse.redirect(
-            new URL(`/payment/pending?order_id=${encodeURIComponent(orderId)}`, request.url)
-        );
-    } catch (error) {
-        // Let Next.js internal signals (prerender bail-out, redirect, notFound)
-        // pass through. Only real errors continue to the code below.
-        unstable_rethrow(error);
-
-        console.error("Payment return verification failed:", error);
-
-        if (acceptsHtml) {
-            return NextResponse.redirect(
-                new URL("/payment/failure?reason=verification_error", request.url)
-            );
-        }
-
-        // A verification error does not mean the payment failed.
-        return NextResponse.json({
-            message: "Payment verification error",
-            status: 500,
-            data: null,
-            error: "Payment verification error",
-            redirect: true,
-            redirectUrl: "/payment/failure?reason=verification_error"
-        }, { status: 500 });
+    if (!isSignatureValid) {
+      console.error(
+        "Razorpay signature verification failed for order:",
+        razorpay_order_id,
+      );
+      return NextResponse.json(
+        {
+          message: "Payment signature verification failed",
+          status: 400,
+          data: null,
+          error: "SIGNATURE_MISMATCH",
+          redirect: true,
+          redirectUrl: `/payment/failure?order_id=${encodeURIComponent(razorpay_order_id)}`,
+        },
+        { status: 400 },
+      );
     }
+
+    // ── 2. Confirm order status via Razorpay API ──
+    const order = await razorpay.orders.fetch(razorpay_order_id);
+    const orderStatus = order?.status; // "created" | "attempted" | "paid"
+
+    if (orderStatus === "paid") {
+      return NextResponse.json(
+        {
+          message: "Payment successful",
+          status: 200,
+          data: {
+            razorpay_order_id,
+            razorpay_payment_id,
+          },
+          error: null,
+          redirect: true,
+          redirectUrl: `/payment/success?order_id=${encodeURIComponent(razorpay_order_id)}`,
+        },
+        { status: 200 },
+      );
+    }
+
+    // Order exists but isn't marked as paid yet (could be attempted/pending)
+    return NextResponse.json(
+      {
+        message: "Payment is pending verification",
+        status: 202,
+        data: null,
+        error: null,
+        redirect: true,
+        redirectUrl: `/payment/pending?order_id=${encodeURIComponent(razorpay_order_id)}`,
+      },
+      { status: 202 },
+    );
+  } catch (error) {
+    // Let Next.js internal signals (prerender bail-out, redirect, notFound)
+    // pass through. Only real errors continue to the code below.
+    unstable_rethrow(error);
+
+    console.error("Payment return verification failed:", error);
+
+    return NextResponse.json(
+      {
+        message: "Payment verification error",
+        status: 500,
+        data: null,
+        error: "VERIFICATION_ERROR",
+        redirect: true,
+        redirectUrl: "/payment/failure?reason=verification_error",
+      },
+      { status: 500 },
+    );
+  }
 }

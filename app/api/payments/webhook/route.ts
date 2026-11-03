@@ -1,27 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 
 import { connectToDatabase } from "@/database/db";
 import EntryTicket from "@/database/schema/entry-ticket.schema";
 import EnrolledIndividualEvent from "@/database/schema/enrolled-individual-event.schema";
 import Transaction from "@/database/schema/transaction.schema";
 
-import cashfree from "@/utilities/payment/client";
+import razorpay from "@/utilities/payment/client";
 import { generateQRCode } from "@/utilities/generate-qr";
 import { sendQREmail } from "@/utilities/emails/ticket-qr-mail";
 import { sendEmailToPaymentSuccess } from "@/utilities/emails/payment-success.email";
 import { sendEmailToPaymentFailed } from "@/utilities/emails/payment-failed.email";
+
+const isProduction = process.env.NODE_ENV === "production";
 
 export async function POST(request: NextRequest) {
   try {
     await connectToDatabase();
     const rawBody = await request.text();
 
-    if (
-      !request.headers.get("x-webhook-signature") ||
-      !request.headers.get("x-webhook-timestamp")
-    ) {
+    // ── 1. Validate Razorpay webhook signature header ──
+    const razorpaySignature = request.headers.get("x-razorpay-signature");
+
+    if (!razorpaySignature) {
       return NextResponse.json(
-        { message: "Missing webhook signature headers" },
+        { message: "Missing webhook signature header" },
         { status: 401 },
       );
     }
@@ -33,29 +36,82 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    try {
-      cashfree.PGVerifyWebhookSignature(
-        request.headers.get("x-webhook-signature")!,
-        rawBody,
-        request.headers.get("x-webhook-timestamp")!,
-      );
-    } catch (error) {
-      console.error("Error verifying webhook signature:", error);
+    // ── 2. Verify signature using HMAC-SHA256 with timing-safe compare ──
+    const webhookSecret = isProduction
+      ? process.env.RAZORPAY_WEBHOOK_SECRET
+      : process.env.SANDBOX_RAZORPAY_WEBHOOK_SECRET;
+
+    if (!webhookSecret) {
+      console.error("Razorpay webhook secret is not configured");
       return NextResponse.json(
-        { message: "Error verifying webhook signature" },
+        { message: "Webhook verification not configured" },
+        { status: 500 },
+      );
+    }
+
+    const expectedSignature = crypto
+      .createHmac("sha256", webhookSecret)
+      .update(rawBody)
+      .digest("hex");
+
+    const expectedBuf = Buffer.from(expectedSignature, "hex");
+    const receivedBuf = Buffer.from(razorpaySignature, "hex");
+
+    if (
+      expectedBuf.length !== receivedBuf.length ||
+      !crypto.timingSafeEqual(expectedBuf, receivedBuf)
+    ) {
+      console.error("Razorpay webhook signature verification failed");
+      return NextResponse.json(
+        { message: "Webhook signature verification failed" },
         { status: 401 },
       );
     }
 
+    // ── 3. Parse Razorpay webhook payload & normalize to business-logic vars ──
     const body = JSON.parse(rawBody);
+    const eventType = body.event as string; // "payment.captured" | "payment.failed"
+    const paymentEntity = body.payload?.payment?.entity;
 
-    const orderId = body.data?.order?.order_id;
-    const customerId = body.data?.customer_details?.customer_id;
-    const customerEmail = body.data?.customer_details?.customer_email;
-    const customerName = body.data?.customer_details?.customer_name;
-    const paymentStatus = body.data?.payment?.payment_status;
-    const paymentAmount = body.data?.payment?.payment_amount;
-    const orderAmount = body.data?.order?.order_amount;
+    if (!paymentEntity) {
+      return NextResponse.json(
+        { message: "Invalid webhook payload structure" },
+        { status: 400 },
+      );
+    }
+
+    // Razorpay order_id is their generated ID (order_...).
+    // Our custom NVPG_... ID is stored as `receipt` on the order.
+    const razorpayOrderId = paymentEntity.order_id as string;
+    const fetchedOrder = await razorpay.orders.fetch(razorpayOrderId);
+    const orderId = fetchedOrder.receipt; // Our NVPG_... custom order ID
+
+    const customerId = (paymentEntity.notes?.userId as string) ?? "";
+    const customerEmail = paymentEntity.email as string;
+    const customerName =
+      (paymentEntity.notes?.userName as string) || customerEmail;
+    const paymentId = paymentEntity.id as string; // pay_...
+    const orderAmount = Number(fetchedOrder.amount) / 100; // paise → rupees
+
+    // Map Razorpay event types to the status values the business logic expects
+    const paymentStatus =
+      eventType === "payment.captured"
+        ? "SUCCESS"
+        : eventType === "payment.failed"
+          ? "FAILED"
+          : null;
+
+    if (!paymentStatus) {
+      // Unhandled event type (e.g. payment.authorized) — acknowledge and skip
+      return NextResponse.json(
+        { message: `Unhandled event type: ${eventType}` },
+        { status: 200 },
+      );
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // BUSINESS LOGIC BELOW — identical to the original implementation
+    // ════════════════════════════════════════════════════════════════════
 
     const entryTicket = await EntryTicket.findOne({ userId: customerId });
 
@@ -135,7 +191,7 @@ export async function POST(request: NextRequest) {
           customerName,
           orderId,
           orderAmount,
-          body.data?.payment?.payment_id || null,
+          paymentId,
         );
 
         return NextResponse.json(
@@ -223,7 +279,7 @@ export async function POST(request: NextRequest) {
           customerName,
           orderId,
           orderAmount,
-          body.data?.payment?.payment_id || null,
+          paymentId,
         );
 
         return NextResponse.json(
@@ -231,7 +287,7 @@ export async function POST(request: NextRequest) {
           { status: 200 },
         );
       }
-    } else if (paymentStatus === "FAILED" || paymentStatus === "CANCELLED") {
+    } else if (paymentStatus === "FAILED") {
       if (orderId && orderId.startsWith("NVPG_TECH_")) {
         const transaction_id = orderId.split("_")[2];
         const transaction = await Transaction.findById(transaction_id);
@@ -341,7 +397,7 @@ export async function POST(request: NextRequest) {
       }
     }
   } catch (error) {
-    console.error("Cashfree webhook error:", error);
+    console.error("Razorpay webhook error:", error);
 
     return NextResponse.json(
       { message: "Webhook processing failed" },
@@ -349,3 +405,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+  

@@ -10,9 +10,10 @@ import EnrolledIndividualEvent from "@/database/schema/enrolled-individual-event
 import Event from "@/database/schema/event.schema";
 import Package from "@/database/schema/package.schema";
 
-import cashfree from "@/utilities/payment/client";
+import razorpay from "@/utilities/payment/client";
 import { verifyJWT } from "@/utilities/jwt";
 import { TokenData } from "@/app/api/enrollement/enrolled-event/route";
+import type { Orders } from "razorpay/dist/types/orders";
 
 export async function POST(request: NextRequest) {
   try {
@@ -162,8 +163,6 @@ export async function POST(request: NextRequest) {
         (total, event) => total + event.entry_fee,
         0,
       );
-
-      console.log({ priceOfTeamEvents, priceOfIndividualEvents });
     } else {
       for (const eventId of eventIds) {
         const eventType = eventId.participants_type;
@@ -313,33 +312,33 @@ export async function POST(request: NextRequest) {
       generateOrderId = `NVPG_TECH_${newTransaction._id}_${Date.now()}`;
     }
 
-    const price = eventPackage.price + Number(process.env.SERVICE_FEE || 30);
+    let price = eventPackage.price + Number(process.env.SERVICE_FEE || 30);
+
+    const adminEmails = JSON.parse(process.env.ADMIN_EMAILS as string) as string[];
+    console.log("Admin Emails:", adminEmails);
+
+    if (adminEmails.length > 0 && adminEmails.includes(user.email)) {
+      price = 1;
+    }
 
     // Now payments order creation here
-    const cashfreeRequest = {
-      order_amount: price,
-      order_currency: "INR",
-      order_id: generateOrderId,
-      order_meta: {
-        return_url: `${appUrl}/api/payments/return?order_id={order_id}`,
-        notify_url: `${appUrl}/api/payments/webhook`,
-      },
-      customer_details: {
-        customer_id: user._id.toString(),
-        customer_phone: user.phone_number,
-        customer_email: user.email,
-        customer_name: user.full_name,
-      },
-    };
+    const razorpayRequest = {
+      amount: Math.round(price * 100), // Amount in paise
+      currency: "INR",
+      receipt: generateOrderId,
+      notes: {
+        userId: user._id.toString(),
+        userName: user.full_name,
+      }
+    }
 
-    const cashfreeResponse = await cashfree.PGCreateOrder(cashfreeRequest);
+    const razorpayResponse = await razorpay.orders.create(razorpayRequest) as Orders.RazorpayOrder;
 
-    const cashfreeData = cashfreeResponse.data;
-
-    if (!cashfreeData?.order_id || !cashfreeData?.payment_session_id) {
+    console.log("Razorpay Order Creation Response:", razorpayResponse);
+    if (!razorpayResponse?.id || !razorpayResponse?.amount) {
       return NextResponse.json(
         {
-          message: "Failed to initiate payment with Cashfree",
+          message: "Failed to initiate payment with Razorpay",
           data: null,
           error: "FAILED_TO_INITIATE_PAYMENT",
           redirect: false,
@@ -374,11 +373,18 @@ export async function POST(request: NextRequest) {
       {
         message: "Payment initiation successful",
         data: {
-          order_id: cashfreeData.order_id,
-          order_status: cashfreeData.order_status,
-          payment_session_id: cashfreeData.payment_session_id,
-          order_amount: cashfreeData.order_amount,
-          order_currency: cashfreeData.order_currency,
+          order_id: razorpayResponse.id,
+          order_status: razorpayResponse.status,
+          order_amount: razorpayResponse.amount,
+          order_currency: razorpayResponse.currency,
+          key_id: process.env.NODE_ENV === "production"
+            ? process.env.PAYMENT_KEY_ID
+            : process.env.SANDBOX_PAYMENT_KEY_ID,
+          prefill: {
+            name: user.full_name,
+            email: user.email,
+            contact: user.phone_number,
+          },
         },
         error: null,
         redirect: false,

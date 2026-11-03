@@ -1,4 +1,4 @@
-import { Cashfree, CFEnvironment } from "cashfree-pg";
+import razorpay from "razorpay";
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -13,24 +13,24 @@ const sandbox_payment_api_id = process.env.SANDBOX_PAYMENT_KEY_ID;
 const production_payment_api_secret_key = process.env.PAYMENT_KEY_SECRET;
 const production_payment_api_id = process.env.PAYMENT_KEY_ID;
 
-let cashfree: Cashfree;
+let razorpayInstance: razorpay;
 
 if (isProduction) {
-    if (!production_payment_api_secret_key || !production_payment_api_id) {
-        throw new Error("Production Cashfree API keys are not set in environment variables.");
-    }
+  if (!production_payment_api_secret_key || !production_payment_api_id) {
+    throw new Error(
+      "Production Razorpay API keys are not set in environment variables.",
+    );
+  }
 
-    cashfree = new Cashfree(
-        CFEnvironment.PRODUCTION,
-        production_payment_api_id, // Replace with your Cashfree App ID
-        production_payment_api_secret_key // Replace with your Cashfree Secret Key
-    );
+  razorpayInstance = new razorpay({
+    key_id: production_payment_api_id,
+    key_secret: production_payment_api_secret_key,
+  });
 } else {
-    cashfree = new Cashfree(
-        CFEnvironment.SANDBOX,
-        sandbox_payment_api_id, // Replace with your Cashfree App ID
-        sandbox_payment_api_secret_key // Replace with your Cashfree Secret Key
-    );
+  razorpayInstance = new razorpay({
+    key_id: sandbox_payment_api_id,
+    key_secret: sandbox_payment_api_secret_key,
+  });
 }
 
-export default cashfree;
+export default razorpayInstance;
