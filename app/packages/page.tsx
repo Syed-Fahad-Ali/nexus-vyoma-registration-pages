@@ -90,8 +90,8 @@ async function PackagesContent() {
 export default function PackagesPage() {
   return (
     <div className="relative min-h-screen flex flex-col bg-black text-white selection:bg-[#FF6A00] selection:text-white">
-      {/* Cashfree v3 SDK for Package Order Checkout */}
-      <Script src="https://sdk.cashfree.com/js/v3/cashfree.js" strategy="afterInteractive" />
+      {/* Razorpay Checkout SDK for Package Order Checkout */}
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
 
       {/* 01 — Shared Nexus Vyoma Mirror-Glass Navbar */}
       <Navbar alwaysVisible />

@@ -18,58 +18,58 @@ interface PackagesExplorerProps {
   entryTicketPrice: number;
 }
 
-interface CashfreeCheckoutResult {
-  error?: { message?: string; code?: string };
-  redirect?: boolean;
-  paymentDetails?: unknown;
+interface RazorpayOptions {
+  key: string;
+  amount: number | string;
+  currency: string;
+  name?: string;
+  description?: string;
+  order_id: string;
+  handler: (response: RazorpaySuccessResponse) => void;
+  prefill?: { name?: string; email?: string; contact?: string };
+  notes?: Record<string, string>;
+  theme?: { color?: string };
+  modal?: { ondismiss?: () => void };
 }
 
-interface CashfreeInstance {
-  checkout: (options: {
-    paymentSessionId: string;
-    redirectTarget?: '_modal' | '_self' | '_top';
-  }) => Promise<CashfreeCheckoutResult>;
+interface RazorpaySuccessResponse {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
+interface RazorpayCheckout {
+  open: () => void;
+  close: () => void;
+  on: (event: string, handler: (response: unknown) => void) => void;
 }
 
 declare global {
   interface Window {
-    Cashfree?: (options: { mode: 'sandbox' | 'production' }) => CashfreeInstance;
+    Razorpay?: new (options: RazorpayOptions) => RazorpayCheckout;
   }
 }
 
-async function loadCashfreeSDK(): Promise<CashfreeInstance> {
-  const mode =
-    process.env.NEXT_PUBLIC_CASHFREE_MODE === 'production' ? 'production' : 'sandbox';
-
-  if (typeof window !== 'undefined' && window.Cashfree) {
-    return window.Cashfree({ mode });
-  }
-
-  await new Promise<void>((resolve, reject) => {
+function loadRazorpaySDK(): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
     if (typeof window === 'undefined') return reject(new Error('Window not available'));
-    if (window.Cashfree) return resolve();
+    if (window.Razorpay) return resolve();
 
-    const existing = document.querySelector('script[src*="cashfree.js"]');
+    const existing = document.querySelector('script[src*="checkout.razorpay.com"]');
     if (existing) {
       existing.addEventListener('load', () => resolve());
-      existing.addEventListener('error', () => reject(new Error('Failed to load Cashfree SDK')));
-      if (window.Cashfree) resolve();
+      existing.addEventListener('error', () => reject(new Error('Failed to load Razorpay SDK')));
+      if (window.Razorpay) resolve();
       return;
     }
 
     const script = document.createElement('script');
-    script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
     script.async = true;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Failed to load Cashfree SDK'));
+    script.onerror = () => reject(new Error('Failed to load Razorpay SDK'));
     document.body.appendChild(script);
   });
-
-  if (!window.Cashfree) {
-    throw new Error('Cashfree SDK is not available');
-  }
-
-  return window.Cashfree({ mode });
 }
 
 interface WorkshopVisualTheme {
@@ -296,50 +296,85 @@ export default function PackagesExplorer({
       }
 
       const orderId = resData?.data?.order_id as string | undefined;
-      const paymentSessionId = resData?.data?.payment_session_id as string | undefined;
+      const orderAmount = resData?.data?.order_amount as number | undefined;
+      const orderCurrency = (resData?.data?.order_currency as string) || 'INR';
+      const keyId = resData?.data?.key_id as string | undefined;
+      const prefill = resData?.data?.prefill as
+        | { name?: string; email?: string; contact?: string }
+        | undefined;
 
-      if (!paymentSessionId) {
-        throw new Error(resData?.message || 'Payment session could not be created.');
+      if (!orderId || !keyId) {
+        throw new Error(resData?.message || 'Payment order could not be created.');
       }
 
-      // Open Cashfree v3 Checkout Modal
-      const cashfree = await loadCashfreeSDK();
-      const checkoutResult = await cashfree.checkout({
-        paymentSessionId,
-        redirectTarget: '_modal',
-      });
+      // Load Razorpay SDK and open checkout
+      await loadRazorpaySDK();
 
-      if (checkoutResult?.error) {
-        const cancelMsg = checkoutResult.error.message || 'Payment was cancelled or failed.';
-        setErrorMessage(cancelMsg);
-        isSubmittingRef.current = false;
-        setSubmittingPackageId(null);
-        return;
+      if (!window.Razorpay) {
+        throw new Error('Razorpay SDK is not available. Please refresh and try again.');
       }
 
-      if (checkoutResult?.paymentDetails || orderId) {
-        if (orderId) {
+      const razorpayCheckout = new window.Razorpay({
+        key: keyId,
+        amount: orderAmount ?? 0,
+        currency: orderCurrency,
+        name: 'Nexus Vyoma 2026',
+        description: 'Festival Package Payment',
+        order_id: orderId,
+        prefill: {
+          name: prefill?.name ?? '',
+          email: prefill?.email ?? '',
+          contact: prefill?.contact ?? '',
+        },
+        handler: async (response: RazorpaySuccessResponse) => {
+          // Payment succeeded on Razorpay's side — verify server-side
           try {
-            const verifyRes = await fetch(
-              `/api/payments/return?order_id=${encodeURIComponent(orderId)}`
-            );
+            const verifyRes = await fetch('/api/payments/return', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+
             const verifyData = await verifyRes.json().catch(() => null);
+
             if (verifyData?.redirectUrl) {
-              const targetUrl = verifyData.redirectUrl.includes('?')
-                ? `${verifyData.redirectUrl}&order_id=${encodeURIComponent(orderId)}`
-                : `${verifyData.redirectUrl}?order_id=${encodeURIComponent(orderId)}`;
-              router.push(targetUrl);
+              router.push(verifyData.redirectUrl);
               return;
             }
+
+            // Fallback: redirect to success page
+            router.push(
+              `/payment/success?order_id=${encodeURIComponent(response.razorpay_order_id)}`
+            );
           } catch {
-            // fallback to payment success page
+            // Verification call failed but payment may have succeeded —
+            // redirect to success and let webhook handle confirmation.
+            router.push(
+              `/payment/success?order_id=${encodeURIComponent(response.razorpay_order_id)}`
+            );
           }
-          router.push(`/payment/success?order_id=${encodeURIComponent(orderId)}`);
-          return;
-        }
-        router.push('/payment/success');
-        return;
-      }
+        },
+        theme: { color: '#FF6A00' },
+        modal: {
+          ondismiss: () => {
+            // User closed the Razorpay modal without paying
+            isSubmittingRef.current = false;
+            setSubmittingPackageId(null);
+          },
+        },
+      });
+
+      razorpayCheckout.on('payment.failed', () => {
+        setErrorMessage('Payment was cancelled or failed. Please try again.');
+        isSubmittingRef.current = false;
+        setSubmittingPackageId(null);
+      });
+
+      razorpayCheckout.open();
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : 'Unable to initiate payment. Please try again.';
