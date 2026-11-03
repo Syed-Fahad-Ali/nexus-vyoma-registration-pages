@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     if (!paymentEntity) {
       return NextResponse.json(
         { message: "Invalid webhook payload structure" },
-        { status: 400 },
+        { status: 200 },
       );
     }
 
@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
           );
           return NextResponse.json(
             { message: "Transaction userId does not match customerId" },
-            { status: 400 },
+            { status: 200 },
           );
         }
 
@@ -233,7 +233,7 @@ export async function POST(request: NextRequest) {
           );
           return NextResponse.json(
             { message: "Transaction userId does not match customerId" },
-            { status: 400 },
+            { status: 200 },
           );
         }
 
@@ -358,7 +358,7 @@ export async function POST(request: NextRequest) {
           );
           return NextResponse.json(
             { message: "Transaction not found for the given transaction_id" },
-            { status: 404 },
+            { status: 200 },
           );
         }
 
@@ -375,7 +375,7 @@ export async function POST(request: NextRequest) {
           );
           return NextResponse.json(
             { message: "Transaction userId does not match customerId" },
-            { status: 400 },
+            { status: 200 },
           );
         }
 
@@ -392,7 +392,7 @@ export async function POST(request: NextRequest) {
         );
         return NextResponse.json(
           { message: "Payment failed or cancelled" },
-          { status: 400 },
+          { status: 200 },
         );
       }
     }
@@ -405,4 +405,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-  
