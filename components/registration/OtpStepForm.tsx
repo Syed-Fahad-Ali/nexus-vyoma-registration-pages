@@ -287,7 +287,7 @@ export default function OtpStepForm({ email }: OtpStepFormProps) {
             <span>{email ? `Code sent to ${email}` : 'Enter the 6-digit code'}</span>
             {countdown > 0 ? (
               <span className="text-zinc-500 tracking-wider flex items-center gap-1.5 tabular-nums">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#FF6A00]/80 animate-pulse" />
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#FF6A00]/80" />
                 RESEND IN {formatCountdown(countdown)}
               </span>
             ) : (
@@ -311,7 +311,7 @@ export default function OtpStepForm({ email }: OtpStepFormProps) {
           {/* Success Message Banner */}
           {message && (
             <div
-              className="w-full mt-3 text-xs sm:text-sm text-emerald-400 font-mono tracking-wide px-1 flex items-center gap-1.5 animate-in fade-in slide-in-from-top-1 duration-200"
+              className="w-full mt-3 text-xs sm:text-sm text-emerald-400 font-mono tracking-wide px-1 flex items-center gap-1.5"
               role="status"
             >
               <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -325,7 +325,7 @@ export default function OtpStepForm({ email }: OtpStepFormProps) {
           {/* Error Message Banner */}
           {error && (
             <div
-              className="w-full mt-3 text-xs sm:text-sm text-red-400 font-mono tracking-wide px-1 flex items-center gap-1.5 animate-in fade-in slide-in-from-top-1 duration-200"
+              className="w-full mt-3 text-xs sm:text-sm text-red-400 font-mono tracking-wide px-1 flex items-center gap-1.5"
               role="alert"
             >
               <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

@@ -134,7 +134,7 @@ export default function EmailStepForm({ initialEmail = '' }: EmailStepFormProps)
           {/* Validation / API Error Feedback */}
           {error && (
             <div
-              className="text-xs sm:text-sm text-red-400 font-mono tracking-wide px-1 pt-1 flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1 duration-200"
+              className="text-xs sm:text-sm text-red-400 font-mono tracking-wide px-1 pt-1 flex flex-col gap-1.5"
               role="alert"
             >
               <div className="flex items-start gap-1.5">

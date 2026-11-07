@@ -43,6 +43,24 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Newest first.
 
+### 2026-11-08 — Disabled Registration Animations, Reordered Organizing Faculty, Added Free Events Filter & Resolved tokens.css Build Issue
+
+**Done**
+- **Disabled Registration Flow Animations (`components/registration/`)**:
+  - `RegistrationTitleRolling.tsx`: Added `animate` prop defaulting to `false` so headings render instantly and statically without 3D letter splitting or GSAP timelines.
+  - `RegistrationGridBackground.tsx`: Replaced dynamic `<ShapeGrid />` canvas animation loop with a static, lightweight CSS grid background and subtle radial ambient highlight.
+  - `EmailStepForm.tsx` & `OtpStepForm.tsx`: Removed decorative entrance motion classes (`animate-in`, `fade-in`, `slide-in-from-top-1`, `animate-pulse`), preserving clear functional feedback.
+- **Organizers Faculty Reordering (`lib/data/organizersData.ts`)**:
+  - In `groupMembersByHierarchy`, ensured any faculty member matching "Asif Khan" is placed at the very end of the "Organizing Faculty" section.
+- **Free Events Filter with URL Sync (`components/events/EventsExplorer.tsx`)**:
+  - Added `freeOnly` state synchronized bi-directionally with the URL query param `?free=true` via Next.js `router.replace(..., { scroll: false })`.
+  - Added a "Free Events" checkbox toggle in both desktop sidebar and mobile filter drawer with minimum 44px touch targets.
+  - Included `freeOnly` in active filter counts and clear filter resets.
+- **Resolved Turbopack Token Resolution Error (`app/globals.css`, `app/tokens.css`)**:
+  - Created `app/tokens.css` alongside `app/globals.css` and updated import to `@import "./tokens.css";` to prevent Turbopack parent traversal resolution errors while preserving `brand/tokens.css`.
+- **Validation**:
+  - Confirmed `npx tsc --noEmit` compiles cleanly with zero errors.
+
 ### 2026-11-02 — Right-Aligned Header Actions on Mobile (/packages)
 
 **Done**

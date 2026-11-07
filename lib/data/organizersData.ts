@@ -125,7 +125,18 @@ export function groupMembersByHierarchy(
     });
 
     if (matched.length > 0) {
-      result.push({ section, members: matched });
+      if (section.id === 'organizing-faculty') {
+        // "In ORG memebers page Asif Khan must be at the last of Organizing Faculty."
+        const asifMembers = matched.filter((m) =>
+          (m.name || '').toLowerCase().includes('asif')
+        );
+        const otherFaculty = matched.filter(
+          (m) => !(m.name || '').toLowerCase().includes('asif')
+        );
+        result.push({ section, members: [...otherFaculty, ...asifMembers] });
+      } else {
+        result.push({ section, members: matched });
+      }
     }
   });
 

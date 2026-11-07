@@ -30,10 +30,14 @@ export default function EventsExplorer({ events }: EventsExplorerProps) {
   const [techPassOnly, setTechPassOnly] = useState<boolean>(() => {
     return searchParams.get('techPass') === 'true';
   });
+  const [freeOnly, setFreeOnly] = useState<boolean>(() => {
+    return searchParams.get('free') === 'true';
+  });
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState<boolean>(false);
 
   useEffect(() => {
     setTechPassOnly(searchParams.get('techPass') === 'true');
+    setFreeOnly(searchParams.get('free') === 'true');
   }, [searchParams]);
 
   const filterAsideRef = useRef<HTMLElement>(null);
@@ -129,14 +133,29 @@ export default function EventsExplorer({ events }: EventsExplorerProps) {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
+  // Toggle Free Events selection (updates the URL)
+  const handleToggleFree = (checked: boolean) => {
+    setFreeOnly(checked);
+    const params = new URLSearchParams(searchParams.toString());
+    if (checked) {
+      params.set('free', 'true');
+    } else {
+      params.delete('free');
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
+
   // Reset all filters
   const handleClearFilters = () => {
     setSelectedDates([]);
     setFlagshipOnly(false);
     setTechPassOnly(false);
+    setFreeOnly(false);
     const params = new URLSearchParams(searchParams.toString());
     params.delete('category');
     params.delete('techPass');
+    params.delete('free');
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
@@ -162,6 +181,11 @@ export default function EventsExplorer({ events }: EventsExplorerProps) {
         return false;
       }
 
+      // Free Events filter
+      if (freeOnly && !(event.isFree || event.entryFee === 0)) {
+        return false;
+      }
+
       // Flagship filter
       if (flagshipOnly && !event.isFlagship) {
         return false;
@@ -176,19 +200,21 @@ export default function EventsExplorer({ events }: EventsExplorerProps) {
     }
 
     return sortEventsByIndex(matched);
-  }, [events, selectedDates, selectedCategories, flagshipOnly, techPassOnly]);
+  }, [events, selectedDates, selectedCategories, flagshipOnly, techPassOnly, freeOnly]);
 
   const hasActiveFilters =
     selectedDates.length > 0 ||
     selectedCategories.length > 0 ||
     flagshipOnly ||
-    techPassOnly;
+    techPassOnly ||
+    freeOnly;
 
   const activeFilterCount =
     selectedDates.length +
     selectedCategories.length +
     (flagshipOnly ? 1 : 0) +
-    (techPassOnly ? 1 : 0);
+    (techPassOnly ? 1 : 0) +
+    (freeOnly ? 1 : 0);
 
   // Reusable filter controls (rendered permanently on desktop, inside collapsible drawer on mobile)
   const renderFilterControls = (isMobile = false) => (
@@ -287,6 +313,41 @@ export default function EventsExplorer({ events }: EventsExplorerProps) {
           </div>
           <span className="text-xs sm:text-sm font-medium text-zinc-200 group-hover:text-white transition-colors">
             Tech Pass Events
+          </span>
+        </label>
+
+        {/* Free Events Checkbox */}
+        <label className="inline-flex items-center gap-3 cursor-pointer select-none group min-h-[44px]">
+          <input
+            type="checkbox"
+            checked={freeOnly}
+            onChange={(e) => handleToggleFree(e.target.checked)}
+            className="sr-only"
+          />
+          <div
+            className={`w-4 h-4 rounded flex items-center justify-center border transition-all duration-200 ${
+              freeOnly
+                ? 'bg-[#FF6A00] border-[#FF6A00] text-black'
+                : 'bg-[#12141c] border-zinc-700 group-hover:border-zinc-500'
+            }`}
+          >
+            {freeOnly && (
+              <svg
+                className="w-3 h-3 text-black stroke-[3]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+            )}
+          </div>
+          <span className="text-xs sm:text-sm font-medium text-zinc-200 group-hover:text-white transition-colors">
+            Free Events
           </span>
         </label>
 

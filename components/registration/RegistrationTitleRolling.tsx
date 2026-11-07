@@ -12,17 +12,20 @@ interface RegistrationTitleRollingProps {
   title: string;
   className?: string;
   as?: 'h1' | 'h2' | 'h3' | 'h4' | 'div';
+  animate?: boolean;
 }
 
 /**
  * RegistrationTitleRolling
  * Reuses the signature 2-cycle GSAP 3D vertical rolling text reveal
  * matching the Events, Contact Us, and Organizers headings.
+ * Defaults to animate=false for instantaneous, static rendering without motion.
  */
 export default function RegistrationTitleRolling({
   title,
   className = '',
   as: Component = 'h1',
+  animate = false,
 }: RegistrationTitleRollingProps) {
   const containerRef = useRef<HTMLHeadingElement | HTMLDivElement>(null);
 
@@ -30,7 +33,7 @@ export default function RegistrationTitleRolling({
 
   useGSAP(
     () => {
-      if (!containerRef.current) return;
+      if (!animate || !containerRef.current) return;
 
       const letters = containerRef.current.querySelectorAll('.rolling-letter');
       if (!letters.length) return;
@@ -97,8 +100,19 @@ export default function RegistrationTitleRolling({
           ease: 'power2.out',
         });
     },
-    { scope: containerRef, dependencies: [title] }
+    { scope: containerRef, dependencies: [title, animate] }
   );
+
+  if (!animate) {
+    return (
+      <Component
+        className={`font-[family-name:var(--font-display)] text-2xl xs:text-3xl sm:text-4xl tracking-wide text-white uppercase select-none leading-tight ${className}`}
+        aria-label={title}
+      >
+        {title}
+      </Component>
+    );
+  }
 
   return (
     <Component
